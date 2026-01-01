@@ -82,6 +82,10 @@ curl -X POST "http://localhost:8000/api/chat" \
   -d '{"question": "What is this document about?"}'
 ```
 
+## Related
+
+- **Frontend UI:** [breaking-bad-ui](https://github.com/anfieldlad/breaking-bad-ui)
+
 ## License
 
 MIT
