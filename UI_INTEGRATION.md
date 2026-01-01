@@ -40,8 +40,17 @@ This endpoint uses **Server-Sent Events (SSE)**. You must handle a stream of JSO
 ```javascript
 const response = await fetch('/api/chat', {
   method: 'POST',
-  headers: { 'Content-Type': 'application/json' },
-  body: JSON.stringify({ question: "What is this document about?" })
+  headers: { 
+    'Content-Type': 'application/json',
+    'X-API-Key': 'your_secret_api_key'
+  },
+  body: JSON.stringify({ 
+    question: "What is this document about?",
+    history: [
+      { role: "user", parts: [{ text: "Hi, I'm the owner." }] },
+      { role: "model", parts: [{ text: "Hello! I am Breaking B.A.D." }] }
+    ]
+  })
 });
 
 const reader = response.body.getReader();

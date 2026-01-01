@@ -54,8 +54,13 @@ async def verify_api_key(api_key: str = Security(api_key_header)):
         raise HTTPException(status_code=401, detail="Invalid or missing API key")
     return api_key
 
+class HistoryItem(BaseModel):
+    role: str # 'user' or 'model'
+    parts: List[dict] # [{'text': '...'}]
+
 class ChatRequest(BaseModel):
     question: str
+    history: Optional[List[HistoryItem]] = []
 
 @app.get("/health")
 async def health_check():
@@ -133,26 +138,35 @@ async def chat(request: ChatRequest, _: str = Depends(verify_api_key)):
 
         # 3. Streaming Generator
         def generate_stream():
-            system_prompt = "You are Breaking B.A.D. Answer based ONLY on the context provided. If you don't know the answer based on the context, say you don't know."
-            prompt = f"{system_prompt}\n\nContext:\n{context}\n\nQuestion: {request.question}"
+            system_prompt = "You are Breaking B.A.D. (Bot Answering Dialogue). Your primary source of truth is the provided 'Context'. If the answer is in the context, use it. If the context doesn't contain the answer, you may answer using your general knowledge, but maintain your persona and clarify if needed that the info isn't from the documents. Always be helpful and keep your persona consistent."
             
             # Send sources first
             yield f"data: {json.dumps({'sources': sources})}\n\n"
             
-            config = types.GenerateContentConfig(
-                system_instruction=system_prompt
-            )
+            # Prepare contents for Gemini
+            contents = []
             
-            # Use generate_content_stream for streaming
-            # Note: For thinking models, thoughts are in the 'parts'
-            # We use the thinking model specifically if needed
+            # Add history if available
+            if request.history:
+                for item in request.history:
+                    contents.append(types.Content(
+                        role=item.role,
+                        parts=[types.Part(text=p['text']) for p in item.parts]
+                    ))
+            
+            # Add current question
+            contents.append(types.Content(
+                role="user",
+                parts=[types.Part(text=request.question)]
+            ))
+            
             model_id = 'gemini-2.0-flash'
             
             responses = client.models.generate_content_stream(
                 model=model_id,
-                contents=request.question,
+                contents=contents,
                 config=types.GenerateContentConfig(
-                    system_instruction=f"Context:\n{context}"
+                    system_instruction=f"{system_prompt}\n\nContext:\n{context}"
                 )
             )
             
