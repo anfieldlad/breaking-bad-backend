@@ -1,8 +1,10 @@
 import os
 import io
 import json
-from fastapi import FastAPI, UploadFile, File, HTTPException
+from fastapi import FastAPI, UploadFile, File, HTTPException, Depends, Security
 from fastapi.responses import StreamingResponse
+from fastapi.security import APIKeyHeader
+from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 from typing import List, Optional
 from pypdf import PdfReader
@@ -18,9 +20,13 @@ MONGO_URI = os.getenv("MONGO_URI")
 GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
 DB_NAME = os.getenv("DB_NAME", "rag_app")
 COLLECTION_NAME = os.getenv("COLLECTION_NAME", "documents")
+API_KEY = os.getenv("API_KEY")
 
 if not MONGO_URI or not GEMINI_API_KEY:
     raise ValueError("MONGO_URI and GEMINI_API_KEY must be set in .env file")
+
+if not API_KEY:
+    raise ValueError("API_KEY must be set in .env file for security")
 
 # Initialize Clients
 mongo_client = MongoClient(MONGO_URI)
@@ -31,6 +37,23 @@ client = genai.Client(api_key=GEMINI_API_KEY)
 
 app = FastAPI(title="Breaking B.A.D. API")
 
+# CORS middleware for frontend access
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],  # Configure this to your frontend URL in production
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
+# API Key Security
+api_key_header = APIKeyHeader(name="X-API-Key", auto_error=False)
+
+async def verify_api_key(api_key: str = Security(api_key_header)):
+    if api_key is None or api_key != API_KEY:
+        raise HTTPException(status_code=401, detail="Invalid or missing API key")
+    return api_key
+
 class ChatRequest(BaseModel):
     question: str
 
@@ -39,7 +62,7 @@ async def health_check():
     return {"status": "awake"}
 
 @app.post("/api/ingest")
-async def ingest_pdf(file: UploadFile = File(...)):
+async def ingest_pdf(file: UploadFile = File(...), _: str = Depends(verify_api_key)):
     if not file.filename.endswith(".pdf"):
         raise HTTPException(status_code=400, detail="Only PDF files are supported")
     
@@ -81,7 +104,7 @@ async def ingest_pdf(file: UploadFile = File(...)):
         raise HTTPException(status_code=500, detail=str(e))
 
 @app.post("/api/chat")
-async def chat(request: ChatRequest):
+async def chat(request: ChatRequest, _: str = Depends(verify_api_key)):
     try:
         # 1. Embed the question
         query_embedding_response = client.models.embed_content(

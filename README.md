@@ -34,6 +34,7 @@ MONGO_URI=your_mongodb_atlas_connection_string
 GEMINI_API_KEY=your_gemini_api_key
 DB_NAME=rag_app
 COLLECTION_NAME=documents
+API_KEY=your_secret_api_key
 ```
 
 ### 3. MongoDB Atlas Vector Index
@@ -61,16 +62,17 @@ uvicorn main:app --reload
 
 ## API Endpoints
 
-| Method | Endpoint | Description |
-|--------|----------|-------------|
-| `GET` | `/health` | Health check |
-| `POST` | `/api/ingest` | Upload & process PDF (max 20 pages) |
-| `POST` | `/api/chat` | Ask questions (streaming SSE response) |
+| Method | Endpoint | Description | Auth |
+|--------|----------|-------------|------|
+| `GET` | `/health` | Health check | ❌ |
+| `POST` | `/api/ingest` | Upload & process PDF (max 20 pages) | ✅ |
+| `POST` | `/api/chat` | Ask questions (streaming SSE response) | ✅ |
 
 ### Example: Ingest PDF
 
 ```bash
 curl -X POST "http://localhost:8000/api/ingest" \
+  -H "X-API-Key: your_secret_api_key" \
   -F "file=@document.pdf"
 ```
 
@@ -78,6 +80,7 @@ curl -X POST "http://localhost:8000/api/ingest" \
 
 ```bash
 curl -X POST "http://localhost:8000/api/chat" \
+  -H "X-API-Key: your_secret_api_key" \
   -H "Content-Type: application/json" \
   -d '{"question": "What is this document about?"}'
 ```
