@@ -2,7 +2,7 @@
 
 **Bot Answering Dialogue** — *"Breaking down files. Building up answers."*
 
-A production-grade RAG (Retrieval Augmented Generation) chatbot API that ingests PDF documents and answers questions based on their content using publicly available Gemini API.
+A RAG (Retrieval Augmented Generation) chatbot API that ingests PDF documents and answers questions based on their content using publicly available Gemini API.
 
 ## 🏗️ Architecture
 
