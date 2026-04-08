@@ -34,8 +34,8 @@ class Settings(BaseSettings):
     vector_search_limit: int = 5
 
     # Gemini model settings
-    embedding_model: str = "text-embedding-004"
-    chat_model: str = "gemini-2.0-flash"
+    embedding_model: str = "gemini-embedding-001"
+    chat_model: str = "gemini-2.5-flash-lite"
 
     model_config = SettingsConfigDict(
         env_file=".env",
