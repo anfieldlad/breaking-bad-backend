@@ -109,7 +109,7 @@ class PDFService:
 
             logger.info(
                 f"Extracted text from {len(extracted_pages)} pages",
-                extra={"filename": filename, "pages_with_text": len(extracted_pages)},
+                extra={"file": filename, "pages_with_text": len(extracted_pages)},
             )
             return extracted_pages
 

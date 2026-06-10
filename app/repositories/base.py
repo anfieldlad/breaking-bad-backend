@@ -71,10 +71,20 @@ class DocumentRepositoryBase(ABC):
     def delete_by_filename(self, filename: str) -> int:
         """
         Delete all documents from a specific file.
-        
+
         Args:
             filename: The filename to delete documents for.
-        
+
+        Returns:
+            Number of documents deleted.
+        """
+        pass
+
+    @abstractmethod
+    def delete_all(self) -> int:
+        """
+        Delete every document in the repository.
+
         Returns:
             Number of documents deleted.
         """

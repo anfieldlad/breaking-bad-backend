@@ -133,12 +133,27 @@ class MongoDocumentRepository(DocumentRepositoryBase):
             
             logger.info(
                 f"Deleted {deleted_count} documents for file: {filename}",
-                extra={"filename": filename, "deleted_count": deleted_count},
+                extra={"file": filename, "deleted_count": deleted_count},
             )
             return deleted_count
         except Exception as e:
             logger.error(f"Failed to delete documents: {e}")
             raise DatabaseConnectionError(f"Failed to delete documents: {e}")
+
+    def delete_all(self) -> int:
+        """Delete every document in the collection."""
+        try:
+            result = self.collection.delete_many({})
+            deleted_count = result.deleted_count
+
+            logger.info(
+                f"Deleted all {deleted_count} documents",
+                extra={"deleted_count": deleted_count},
+            )
+            return deleted_count
+        except Exception as e:
+            logger.error(f"Failed to delete all documents: {e}")
+            raise DatabaseConnectionError(f"Failed to delete all documents: {e}")
 
     def close(self) -> None:
         """Close the MongoDB connection."""
