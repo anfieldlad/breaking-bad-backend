@@ -103,7 +103,7 @@ class IngestionService:
         logger.info(
             f"Ingestion complete for {filename}",
             extra={
-                "filename": filename,
+                "file": filename,
                 "pages_extracted": len(extracted_pages),
                 "documents_stored": stored_count,
             },

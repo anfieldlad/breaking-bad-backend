@@ -10,9 +10,11 @@
 * **Framework:** FastAPI
 * **Server:** Uvicorn (Development) / Gunicorn (Production)
 * **Database:** MongoDB Atlas (for Vector Storage)
-* **AI Provider:** Google Gemini API (`google-genai` SDK)
-    * **LLM:** `gemini-2.0-flash`
-    * **Embeddings:** `text-embedding-004`
+* **AI Provider:** Pluggable per role (chat & embedding chosen independently)
+    * **Google Gemini** via `google-genai` SDK, **or**
+    * any **OpenAI-compatible** endpoint via `openai` SDK (OpenAI, vLLM, Ollama, LM Studio, Together, Groq, etc.)
+    * **LLM (example):** `gemini-2.5-flash-lite` / `gpt-4o-mini` / `Qwen2.5-72B-Instruct`
+    * **Embeddings (example):** `gemini-embedding-001` / `text-embedding-3-small`
 * **PDF Processing:** `pypdf`
 
 ## 2. Directory Structure
@@ -23,7 +25,11 @@
 ## 3. Environment Variables
 The application requires the following environment variables:
 * `MONGO_URI`: Connection string for MongoDB Atlas.
-* `GEMINI_API_KEY`: API Key from Google AI Studio.
+* `API_KEY`: Secret key for authenticating API requests.
+* `CHAT_PROVIDER` / `EMBEDDING_PROVIDER`: `gemini` or `openai` (default `gemini`).
+* `GEMINI_API_KEY`: API Key from Google AI Studio (required if any provider is `gemini`).
+* `OPENAI_API_KEY` / `OPENAI_BASE_URL`: credentials + endpoint for OpenAI-compatible providers.
+* `CHAT_MODEL` / `EMBEDDING_MODEL`: model names matching the selected providers.
 * `DB_NAME`: `rag_app`
 * `COLLECTION_NAME`: `documents`
 
@@ -76,7 +82,7 @@ The MongoDB collection `documents` in database `rag_app` must have a Vector Sear
     1. Embed the `question`.
     2. Perform `$vectorSearch` on MongoDB to find top 5 matches.
     3. Concatenate text from matches as `Context`.
-    4. Send `Context` + `Question` to `gemini-2.0-flash-exp`.
+    4. Send `Context` + `Question` to the configured chat model (`CHAT_PROVIDER`).
     5. **System Prompt:** "You are Breaking B.A.D. Answer based ONLY on the context."
 
 ## 6. Implementation Details
@@ -86,7 +92,8 @@ uvicorn
 gunicorn
 python-multipart
 pymongo
-google-generativeai
+google-genai
+openai
 pypdf
 python-dotenv
 

@@ -2,7 +2,7 @@
 
 **Bot Answering Dialogue** — *"Breaking down files. Building up answers."*
 
-A RAG (Retrieval Augmented Generation) chatbot API that ingests PDF documents and answers questions based on their content using publicly available Gemini API.
+A RAG (Retrieval Augmented Generation) chatbot API that ingests PDF documents and answers questions based on their content. The LLM backend is pluggable — both chat and embeddings can independently use **Google Gemini** or any **OpenAI-compatible** endpoint (OpenAI, vLLM, Ollama, LM Studio, Together, Groq, etc.).
 
 ## 🏗️ Architecture
 
@@ -31,9 +31,9 @@ app/
 |-----------|------------|
 | Framework | FastAPI |
 | Database | MongoDB Atlas (Vector Storage) |
-| AI Provider | Google Gemini API |
-| LLM | `gemini-2.0-flash` |
-| Embeddings | `text-embedding-004` |
+| AI Provider | Google Gemini **or** any OpenAI-compatible endpoint (configurable per role) |
+| LLM | e.g. `gemini-2.5-flash-lite` / `gpt-4o-mini` / `Qwen2.5-72B-Instruct` |
+| Embeddings | e.g. `gemini-embedding-001` / `text-embedding-3-small` |
 | PDF Processing | pypdf |
 
 ## 🚀 Quick Start
@@ -51,15 +51,32 @@ pip install -r requirements.txt
 
 ### 2. Configure Environment
 
-Create a `.env` file:
+Create a `.env` file (see [.env.example](./.env.example) for all options):
 
 ```env
 MONGO_URI=your_mongodb_atlas_connection_string
-GEMINI_API_KEY=your_gemini_api_key
+API_KEY=your_secret_api_key
 DB_NAME=rag_app
 COLLECTION_NAME=documents
-API_KEY=your_secret_api_key
+
+# Provider selection (each can be "gemini" or "openai")
+CHAT_PROVIDER=gemini
+EMBEDDING_PROVIDER=gemini
+
+# Required when a provider above is "gemini"
+GEMINI_API_KEY=your_gemini_api_key
+
+# Required when a provider above is "openai" (any OpenAI-compatible endpoint)
+OPENAI_API_KEY=your_openai_api_key
+OPENAI_BASE_URL=https://api.openai.com/v1   # e.g. http://localhost:11434/v1 for Ollama
+
+# Models — must match the selected provider
+CHAT_MODEL=gemini-2.5-flash-lite
+EMBEDDING_MODEL=gemini-embedding-001
 ```
+
+> **Example — Qwen for chat, Gemini for embeddings** (no vector reindex needed):
+> set `CHAT_PROVIDER=openai`, `OPENAI_BASE_URL` to your Qwen endpoint, `CHAT_MODEL` to your model name, and keep `EMBEDDING_PROVIDER=gemini`.
 
 ### 3. MongoDB Atlas Vector Index
 
@@ -78,6 +95,8 @@ Create a Vector Search Index named `vector_index` on your collection:
 }
 ```
 
+> ⚠️ **`numDimensions` must match your embedding model's output size** (e.g. `text-embedding-3-small` = 1536, `gemini-embedding-001` = 3072). If you change the embedding model/provider, recreate this index with the new dimension and **re-ingest** all documents. Switching only the chat provider does **not** affect the index.
+
 ### 4. Run
 
 ```bash
@@ -95,6 +114,20 @@ python main.py
 | `GET` | `/health` | Health check | ❌ |
 | `POST` | `/api/ingest` | Upload & process PDF (max 20 pages) | ✅ |
 | `POST` | `/api/chat` | Ask questions (streaming SSE response) | ✅ |
+| `GET` | `/api/documents/count` | Count stored document chunks | ✅ |
+| `DELETE` | `/api/documents` | Cleanup documents: `?filename=...` or `?all=true` | ✅ |
+
+### Example: Cleanup Documents
+
+```bash
+# Delete all chunks from one file
+curl -X DELETE "http://localhost:8000/api/documents?filename=document.pdf" \
+  -H "X-API-Key: your_secret_api_key"
+
+# Wipe the entire collection
+curl -X DELETE "http://localhost:8000/api/documents?all=true" \
+  -H "X-API-Key: your_secret_api_key"
+```
 
 ### Interactive Documentation
 
@@ -159,12 +192,16 @@ breaking-bad-backend/
 │   │   ├── base.py             # Abstract repository
 │   │   └── document_repository.py  # MongoDB implementation
 │   └── services/
-│       ├── embedding_service.py    # Gemini embeddings
+│       ├── providers/              # Pluggable LLM backends (Gemini / OpenAI-compatible)
+│       ├── embedding_service.py    # Embedding generation
 │       ├── pdf_service.py          # PDF processing
 │       ├── chat_service.py         # RAG orchestration
 │       └── ingestion_service.py    # Ingestion pipeline
+├── tests/                      # Functional test suite (pytest)
 ├── main.py                     # Entry point
 ├── requirements.txt            # Dependencies (pinned)
+├── requirements-dev.txt        # Test/dev dependencies
+├── pytest.ini
 ├── .env.example
 └── README.md
 ```
@@ -176,11 +213,52 @@ All configuration is managed via environment variables with sensible defaults:
 | Variable | Description | Default |
 |----------|-------------|---------|
 | `MONGO_URI` | MongoDB Atlas connection string | Required |
-| `GEMINI_API_KEY` | Google AI API key | Required |
 | `API_KEY` | API authentication key | Required |
+| `CHAT_PROVIDER` | Chat backend: `gemini` or `openai` | `gemini` |
+| `EMBEDDING_PROVIDER` | Embedding backend: `gemini` or `openai` | `gemini` |
+| `GEMINI_API_KEY` | Google AI API key (required if any provider is `gemini`) | `""` |
+| `OPENAI_API_KEY` | API key (required if any provider is `openai`) | `""` |
+| `OPENAI_BASE_URL` | OpenAI-compatible endpoint URL | `https://api.openai.com/v1` |
+| `CHAT_MODEL` | Chat model name (must match provider) | `gemini-2.5-flash-lite` |
+| `EMBEDDING_MODEL` | Embedding model name (must match provider) | `gemini-embedding-001` |
 | `DB_NAME` | Database name | `rag_app` |
 | `COLLECTION_NAME` | Collection name | `documents` |
 | `MAX_PAGES_PER_PDF` | Max pages to process | `20` |
+
+## 🧪 Testing
+
+The suite under `tests/` runs **functional tests against the live services**
+configured in your `.env` (MongoDB Atlas + the chat/embedding endpoint). It is
+safe to run repeatedly:
+
+- Every test document uses a `__pytest__` filename prefix and is auto-deleted
+  before and after each test.
+- The destructive `?all=true` test **skips itself** if the collection holds any
+  real (non-test) documents, so it never wipes your data.
+- The RAG test creates the vector index (with the live embedding dimension) if
+  it is missing, then waits until it is queryable.
+
+```bash
+# Install test dependencies (includes runtime deps)
+pip install -r requirements-dev.txt
+
+# Run the whole suite
+pytest
+
+# Run a subset
+pytest tests/test_documents.py
+pytest -k rag
+```
+
+| Test file | Covers |
+|-----------|--------|
+| `test_health.py` | `/health` |
+| `test_llm.py` | Live chat + embedding provider connectivity |
+| `test_documents.py` | Ingest, count, and cleanup endpoints (incl. auth/guards) |
+| `test_rag.py` | End-to-end RAG: ingest → vector search → grounded answer |
+
+> Requires a populated `.env` and network access. Without them the app cannot
+> start and the suite will error on collection.
 
 ## 🚢 Deployment
 

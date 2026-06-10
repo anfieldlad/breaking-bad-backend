@@ -71,6 +71,16 @@ class IngestResponse(BaseModel):
     chunks_stored: int = Field(..., description="Number of chunks/pages stored")
 
 
+# ----- Document Management Schemas -----
+
+
+class DeleteResponse(BaseModel):
+    """Response body for document deletion/cleanup."""
+
+    message: str = Field(default="Success")
+    deleted_count: int = Field(..., description="Number of documents deleted")
+
+
 # ----- Health Schemas -----
 
 

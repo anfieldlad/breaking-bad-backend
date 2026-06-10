@@ -13,12 +13,29 @@ class Settings(BaseSettings):
 
     # Required settings (no defaults - must be provided)
     mongo_uri: str
-    gemini_api_key: str
     api_key: str
 
     # Optional settings with defaults
     db_name: str = "rag_app"
     collection_name: str = "documents"
+
+    # Master password required for destructive document cleanup.
+    # When empty, the cleanup endpoint is not password-gated.
+    cleanup_password: str = ""
+
+    # ----- LLM provider selection -----
+    # Each can be independently set to "gemini" or "openai".
+    # "openai" works with any OpenAI-compatible endpoint (OpenAI, vLLM,
+    # Ollama, LM Studio, Together, Groq, etc.) via OPENAI_BASE_URL.
+    chat_provider: str = "gemini"
+    embedding_provider: str = "gemini"
+
+    # Gemini credentials (required when a provider is set to "gemini")
+    gemini_api_key: str = ""
+
+    # OpenAI-compatible credentials (required when a provider is set to "openai")
+    openai_api_key: str = ""
+    openai_base_url: str = "https://api.openai.com/v1"
 
     # Application settings
     app_name: str = "Breaking B.A.D. API"
@@ -33,7 +50,9 @@ class Settings(BaseSettings):
     vector_search_candidates: int = 50
     vector_search_limit: int = 5
 
-    # Gemini model settings
+    # Model names (must match the selected provider).
+    # Gemini examples: chat="gemini-2.5-flash-lite", embedding="gemini-embedding-001"
+    # OpenAI examples: chat="gpt-4o-mini", embedding="text-embedding-3-small"
     embedding_model: str = "gemini-embedding-001"
     chat_model: str = "gemini-2.5-flash-lite"
 

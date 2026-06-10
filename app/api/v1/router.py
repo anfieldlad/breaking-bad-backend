@@ -6,7 +6,7 @@ Combines all v1 endpoints under a single router with /api prefix.
 
 from fastapi import APIRouter
 
-from app.api.v1 import chat, health, ingest
+from app.api.v1 import chat, documents, health, ingest
 
 # Create the main API router
 router = APIRouter()
@@ -18,6 +18,7 @@ router.include_router(health.router)
 api_router = APIRouter(prefix="/api")
 api_router.include_router(ingest.router)
 api_router.include_router(chat.router)
+api_router.include_router(documents.router)
 
 # Include API router
 router.include_router(api_router)

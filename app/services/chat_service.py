@@ -8,15 +8,13 @@ using the Breaking B.A.D. persona.
 import json
 from typing import Generator, List, Optional
 
-from google import genai
-from google.genai import types
-
 from app.core.config import Settings
 from app.core.exceptions import ChatGenerationError
 from app.core.logging import get_logger
 from app.models.schemas import HistoryItem
 from app.repositories.base import DocumentRepositoryBase
 from app.services.embedding_service import EmbeddingService
+from app.services.providers import ChatMessage, get_chat_provider
 
 logger = get_logger(__name__)
 
@@ -37,9 +35,9 @@ class ChatService:
     
     Combines vector search retrieval with LLM generation to provide
     context-aware responses based on ingested documents.
-    
+
     Attributes:
-        client: Google GenAI client instance.
+        provider: The configured chat backend.
         model: Name of the chat model to use.
         repository: Document repository for retrieval.
         embedding_service: Service for generating query embeddings.
@@ -60,13 +58,16 @@ class ChatService:
             repository: Document repository for context retrieval.
             embedding_service: Service for generating embeddings.
         """
-        self.client = genai.Client(api_key=settings.gemini_api_key)
+        self.provider = get_chat_provider(settings)
         self.model = settings.chat_model
         self.repository = repository
         self.embedding_service = embedding_service
         self.vector_search_limit = settings.vector_search_limit
-        
-        logger.info(f"Chat service initialized with model: {self.model}")
+
+        logger.info(
+            f"Chat service initialized "
+            f"(provider={settings.chat_provider}, model={self.model})"
+        )
 
     def generate_response_stream(
         self,
@@ -98,11 +99,11 @@ class ChatService:
             # Step 2: Send sources first
             yield f"data: {json.dumps({'sources': sources})}\n\n"
             
-            # Step 3: Build conversation contents
-            contents = self._build_contents(question, history)
-            
+            # Step 3: Build conversation messages
+            messages = self._build_messages(question, history)
+
             # Step 4: Generate streaming response
-            yield from self._stream_response(contents, context)
+            yield from self._stream_response(messages, context)
             
         except Exception as e:
             logger.error(f"Chat generation failed: {e}")
@@ -138,77 +139,58 @@ class ChatService:
         
         return context, sources
 
-    def _build_contents(
+    def _build_messages(
         self,
         question: str,
         history: Optional[List[HistoryItem]] = None,
-    ) -> List[types.Content]:
+    ) -> List[ChatMessage]:
         """
-        Build the conversation contents for the LLM.
-        
+        Build the provider-neutral conversation messages for the LLM.
+
         Args:
             question: The current question.
             history: Optional conversation history.
-        
+
         Returns:
-            List of Content objects for the LLM.
+            List of ChatMessage objects for the LLM.
         """
-        contents = []
-        
+        messages: List[ChatMessage] = []
+
         # Add history if available
         if history:
             for item in history:
-                contents.append(
-                    types.Content(
-                        role=item.role,
-                        parts=[types.Part(text=p.text) for p in item.parts],
-                    )
-                )
-        
+                text = "".join(p.text for p in item.parts)
+                messages.append(ChatMessage(role=item.role, text=text))
+
         # Add current question
-        contents.append(
-            types.Content(
-                role="user",
-                parts=[types.Part(text=question)],
-            )
-        )
-        
-        return contents
+        messages.append(ChatMessage(role="user", text=question))
+
+        return messages
 
     def _stream_response(
         self,
-        contents: List[types.Content],
+        messages: List[ChatMessage],
         context: str,
     ) -> Generator[str, None, None]:
         """
         Stream the LLM response.
-        
+
         Args:
-            contents: The conversation contents.
+            messages: The conversation messages.
             context: The retrieved context to include in the system prompt.
-        
+
         Yields:
             SSE-formatted strings with thought and answer data.
         """
         system_instruction = f"{SYSTEM_PROMPT}\n\nContext:\n{context}"
-        
-        responses = self.client.models.generate_content_stream(
-            model=self.model,
-            contents=contents,
-            config=types.GenerateContentConfig(
-                system_instruction=system_instruction,
-            ),
-        )
-        
-        for response in responses:
-            if response.candidates:
-                for part in response.candidates[0].content.parts:
-                    data = {}
-                    
-                    if hasattr(part, 'thought') and part.thought:
-                        data["thought"] = part.thought
-                    if part.text:
-                        data["answer"] = part.text
-                    
-                    if data:
-                        yield f"data: {json.dumps(data)}\n\n"
+
+        for chunk in self.provider.stream(system_instruction, messages):
+            data = {}
+
+            if chunk.thought:
+                data["thought"] = chunk.thought
+            if chunk.answer:
+                data["answer"] = chunk.answer
+
+            if data:
+                yield f"data: {json.dumps(data)}\n\n"

@@ -1,44 +1,46 @@
 """
-Embedding service for generating vector embeddings using Google Gemini.
+Embedding service for generating vector embeddings.
 
 Encapsulates all embedding-related operations, providing a clean interface
-for the rest of the application.
+for the rest of the application. The concrete backend (Google Gemini or any
+OpenAI-compatible endpoint) is selected from configuration.
 """
 
 from typing import List
 
-from google import genai
-from google.genai import types
-
 from app.core.config import Settings
 from app.core.exceptions import EmbeddingError
 from app.core.logging import get_logger
+from app.services.providers import get_embedding_provider
 
 logger = get_logger(__name__)
 
 
 class EmbeddingService:
     """
-    Service for generating text embeddings using Google Gemini API.
-    
+    Service for generating text embeddings.
+
     Provides methods for embedding documents (for storage) and queries
     (for retrieval), using the appropriate task types for each.
-    
+
     Attributes:
-        client: Google GenAI client instance.
+        provider: The configured embedding backend.
         model: Name of the embedding model to use.
     """
 
     def __init__(self, settings: Settings):
         """
         Initialize the embedding service.
-        
+
         Args:
-            settings: Application settings containing API key and model config.
+            settings: Application settings containing provider and model config.
         """
-        self.client = genai.Client(api_key=settings.gemini_api_key)
+        self.provider = get_embedding_provider(settings)
         self.model = settings.embedding_model
-        logger.info(f"Embedding service initialized with model: {self.model}")
+        logger.info(
+            f"Embedding service initialized "
+            f"(provider={settings.embedding_provider}, model={self.model})"
+        )
 
     def embed_document(self, text: str) -> List[float]:
         """
@@ -89,13 +91,8 @@ class EmbeddingService:
             EmbeddingError: If embedding generation fails.
         """
         try:
-            response = self.client.models.embed_content(
-                model=self.model,
-                contents=text,
-                config=types.EmbedContentConfig(task_type=task_type),
-            )
-            embedding = response.embeddings[0].values
-            
+            embedding = self.provider.embed(text, task_type)
+
             logger.debug(
                 f"Generated embedding",
                 extra={"task_type": task_type, "dimension": len(embedding)},
