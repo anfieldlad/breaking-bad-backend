@@ -42,6 +42,8 @@ app/
 
 ### 1. Clone & Install
 
+Requires **Python 3.11+**.
+
 ```bash
 git clone https://github.com/anfieldlad/breaking-bad-backend.git
 cd breaking-bad-backend
@@ -255,7 +257,13 @@ pytest
 
 # Live functional tests against the services in your .env
 pytest -m integration
+
+# Lint / format (config in pyproject.toml)
+ruff check . && ruff format --check .
 ```
+
+CI (`.github/workflows/ci.yml`) runs lint, format check, unit tests and
+`pip-audit` on Python 3.11 and 3.13.
 
 **Unit tests** (`tests/unit/`) replace MongoDB and the LLM providers with
 in-memory fakes via FastAPI dependency overrides, so they run anywhere,

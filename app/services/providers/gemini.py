@@ -2,7 +2,7 @@
 Google Gemini provider implementations (via the google-genai SDK).
 """
 
-from typing import Generator, Iterator, List
+from collections.abc import Generator, Iterator
 
 from google import genai
 from google.genai import types
@@ -48,7 +48,7 @@ class GeminiChatProvider(ChatProvider):
     def stream(
         self,
         system_instruction: str,
-        messages: List[ChatMessage],
+        messages: list[ChatMessage],
     ) -> Generator[ChatChunk, None, None]:
         contents = [
             types.Content(
@@ -64,9 +64,7 @@ class GeminiChatProvider(ChatProvider):
             config=types.GenerateContentConfig(
                 system_instruction=system_instruction,
                 thinking_config=(
-                    types.ThinkingConfig(include_thoughts=True)
-                    if self.include_thoughts
-                    else None
+                    types.ThinkingConfig(include_thoughts=True) if self.include_thoughts else None
                 ),
             ),
         )
@@ -82,7 +80,7 @@ class GeminiEmbeddingProvider(EmbeddingProvider):
         self.client = genai.Client(api_key=api_key)
         self.model = model
 
-    def embed(self, text: str, task_type: str) -> List[float]:
+    def embed(self, text: str, task_type: str) -> list[float]:
         response = self.client.models.embed_content(
             model=self.model,
             contents=text,

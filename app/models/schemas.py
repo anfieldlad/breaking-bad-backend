@@ -4,7 +4,7 @@ Pydantic schemas for API request and response validation.
 Provides type-safe data validation for all API endpoints.
 """
 
-from typing import List, Literal
+from typing import Literal
 
 from pydantic import BaseModel, Field
 
@@ -26,20 +26,20 @@ class HistoryPart(BaseModel):
 class HistoryItem(BaseModel):
     """
     A single message in the conversation history.
-    
+
     Attributes:
         role: The role of the message sender ('user' or 'model').
         parts: List of message parts (typically containing text).
     """
 
     role: Literal["user", "model"] = Field(..., description="Role: 'user' or 'model'")
-    parts: List[HistoryPart] = Field(..., max_length=10)
+    parts: list[HistoryPart] = Field(..., max_length=10)
 
 
 class ChatRequest(BaseModel):
     """
     Request body for the chat endpoint.
-    
+
     Attributes:
         question: The user's question to be answered.
         history: Optional conversation history for multi-turn chat.
@@ -51,7 +51,7 @@ class ChatRequest(BaseModel):
         max_length=MAX_QUESTION_CHARS,
         description="The question to ask",
     )
-    history: List[HistoryItem] = Field(
+    history: list[HistoryItem] = Field(
         default_factory=list,
         max_length=MAX_HISTORY_ITEMS,
         description="Previous conversation history for context (oldest first)",
@@ -119,7 +119,7 @@ class ErrorResponse(BaseModel):
 class ValidationErrorDetail(BaseModel):
     """Detail of a validation error."""
 
-    loc: List[str] = Field(..., description="Location of the error")
+    loc: list[str] = Field(..., description="Location of the error")
     msg: str = Field(..., description="Error message")
     type: str = Field(..., description="Error type")
 
@@ -127,4 +127,4 @@ class ValidationErrorDetail(BaseModel):
 class ValidationErrorResponse(BaseModel):
     """Response for validation errors (422)."""
 
-    detail: List[ValidationErrorDetail]
+    detail: list[ValidationErrorDetail]

@@ -25,7 +25,10 @@ router = APIRouter(tags=["Chat"])
         502: {"model": ErrorResponse, "description": "External service error"},
     },
     summary="Chat with Documents",
-    description="Ask questions about ingested documents. Returns streaming SSE response with sources, reasoning, and answer.",
+    description=(
+        "Ask questions about ingested documents. Returns a streaming SSE response "
+        "with sources, reasoning, and answer."
+    ),
 )
 async def chat(
     request: ChatRequest,
@@ -34,18 +37,18 @@ async def chat(
 ) -> StreamingResponse:
     """
     Ask a question and get a streaming response.
-    
+
     The response is streamed as Server-Sent Events (SSE) with:
     - sources: List of document filenames used as context
     - thought: Model's reasoning process (if available)
     - answer: The generated response text
     - error: A generic failure message if generation fails mid-stream
-    
+
     Args:
         request: The chat request containing the question and optional history.
         chat_service: The injected chat service.
         _api_key: Verified API key (unused, but required for auth).
-    
+
     Returns:
         StreamingResponse with SSE events. Errors raised while streaming are
         reported as an ``error`` event by the chat service.

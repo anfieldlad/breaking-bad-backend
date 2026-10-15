@@ -46,9 +46,7 @@ async def ingest_pdf(
     # Read one byte past the limit to detect oversized uploads.
     content = await file.read(settings.max_upload_bytes + 1)
     if len(content) > settings.max_upload_bytes:
-        raise FileTooLargeError(
-            f"File exceeds the {settings.max_upload_mb} MB upload limit"
-        )
+        raise FileTooLargeError(f"File exceeds the {settings.max_upload_mb} MB upload limit")
 
     # Parsing, embedding and storage are blocking; keep them off the event loop.
     chunks_stored = await run_in_threadpool(

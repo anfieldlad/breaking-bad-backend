@@ -7,7 +7,7 @@ to routes through these dependencies, so tests can swap them via
 """
 
 import hmac
-from typing import Annotated, Optional
+from typing import Annotated
 
 from fastapi import Depends, HTTPException, Request, Security, status
 from fastapi.security import APIKeyHeader
@@ -54,7 +54,7 @@ def get_chat_service(services: ServicesDep) -> ChatService:
 
 async def verify_api_key(
     settings: SettingsDep,
-    api_key: Optional[str] = Security(api_key_header),
+    api_key: str | None = Security(api_key_header),
 ) -> str:
     """
     Verify the API key from the X-API-Key header.

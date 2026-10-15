@@ -9,8 +9,6 @@ information (connection strings, provider error payloads, stack traces).
 Chain the original exception with `raise ... from e` so it is still logged.
 """
 
-from typing import Optional
-
 
 class BreakingBadError(Exception):
     """Base exception for all application errors."""
@@ -18,7 +16,7 @@ class BreakingBadError(Exception):
     status_code: int = 500
     detail: str = "An unexpected error occurred"
 
-    def __init__(self, detail: Optional[str] = None):
+    def __init__(self, detail: str | None = None):
         self.detail = detail or self.__class__.detail
         super().__init__(self.detail)
 

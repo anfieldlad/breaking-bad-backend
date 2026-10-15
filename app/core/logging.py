@@ -16,9 +16,7 @@ from app.core.config import Settings
 #: ID of the HTTP request being handled ("-" outside of a request).
 request_id_var: ContextVar[str] = ContextVar("request_id", default="-")
 
-_TEXT_FORMAT = (
-    "%(asctime)s | %(levelname)-8s | %(request_id)s | %(name)s:%(lineno)d - %(message)s"
-)
+_TEXT_FORMAT = "%(asctime)s | %(levelname)-8s | %(request_id)s | %(name)s:%(lineno)d - %(message)s"
 # Attributes every LogRecord has; anything else was passed via `extra=`.
 _STANDARD_ATTRS = set(vars(logging.makeLogRecord({}))) | {"message", "asctime", "request_id"}
 
@@ -42,9 +40,7 @@ class JsonFormatter(logging.Formatter):
             "request_id": getattr(record, "request_id", "-"),
             "message": record.getMessage(),
         }
-        payload.update(
-            {k: v for k, v in vars(record).items() if k not in _STANDARD_ATTRS}
-        )
+        payload.update({k: v for k, v in vars(record).items() if k not in _STANDARD_ATTRS})
         if record.exc_info:
             payload["exc_info"] = self.formatException(record.exc_info)
         return json.dumps(payload, default=str)

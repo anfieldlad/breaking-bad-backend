@@ -7,8 +7,8 @@ runtime from configuration.
 """
 
 from abc import ABC, abstractmethod
+from collections.abc import Generator
 from dataclasses import dataclass
-from typing import Generator, List, Optional
 
 
 @dataclass
@@ -36,8 +36,8 @@ class ChatChunk:
         thought: Reasoning/thinking text, if the provider exposes it.
     """
 
-    answer: Optional[str] = None
-    thought: Optional[str] = None
+    answer: str | None = None
+    thought: str | None = None
 
 
 class ChatProvider(ABC):
@@ -47,7 +47,7 @@ class ChatProvider(ABC):
     def stream(
         self,
         system_instruction: str,
-        messages: List[ChatMessage],
+        messages: list[ChatMessage],
     ) -> Generator[ChatChunk, None, None]:
         """
         Stream a chat completion.
@@ -66,7 +66,7 @@ class EmbeddingProvider(ABC):
     """Abstract base class for text embedding backends."""
 
     @abstractmethod
-    def embed(self, text: str, task_type: str) -> List[float]:
+    def embed(self, text: str, task_type: str) -> list[float]:
         """
         Generate an embedding vector for the given text.
 

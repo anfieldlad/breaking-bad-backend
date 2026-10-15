@@ -4,8 +4,6 @@ Ingestion service for processing and storing PDF documents.
 Orchestrates PDF processing, embedding generation, and document storage.
 """
 
-from typing import List
-
 from app.core.logging import get_logger
 from app.models.document import Document
 from app.repositories.base import DocumentRepositoryBase
@@ -18,10 +16,10 @@ logger = get_logger(__name__)
 class IngestionService:
     """
     Service for ingesting PDF documents into the vector database.
-    
+
     Coordinates the full ingestion pipeline: validation, text extraction,
     embedding generation, and storage.
-    
+
     Attributes:
         pdf_service: Service for PDF processing.
         embedding_service: Service for generating embeddings.
@@ -36,7 +34,7 @@ class IngestionService:
     ):
         """
         Initialize the ingestion service.
-        
+
         Args:
             pdf_service: Service for PDF processing.
             embedding_service: Service for generating embeddings.
@@ -78,7 +76,7 @@ class IngestionService:
 
         extracted_pages = self.pdf_service.extract_text(content, filename)
 
-        documents: List[Document] = [
+        documents: list[Document] = [
             Document(
                 text=page.text,
                 embedding=self.embedding_service.embed_document(page.text),

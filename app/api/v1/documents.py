@@ -5,7 +5,6 @@ Provides cleanup/maintenance operations over the stored document collection.
 """
 
 import hmac
-from typing import Optional
 
 from fastapi import APIRouter, Header, HTTPException, Query
 
@@ -62,13 +61,9 @@ def delete_documents(
     repository: DocumentRepositoryDep,
     settings: SettingsDep,
     _api_key: APIKeyDep,
-    filename: Optional[str] = Query(
-        None, description="Delete only chunks from this filename"
-    ),
-    all: bool = Query(
-        False, description="Set to true to delete ALL documents in the collection"
-    ),
-    cleanup_password: Optional[str] = Header(
+    filename: str | None = Query(None, description="Delete only chunks from this filename"),
+    all: bool = Query(False, description="Set to true to delete ALL documents in the collection"),
+    cleanup_password: str | None = Header(
         None,
         alias="X-Cleanup-Password",
         description="Master password required when configured on the server",

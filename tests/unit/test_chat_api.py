@@ -35,9 +35,7 @@ def test_chat_reports_retrieval_failure_as_error_event(client, auth, repository)
     assert "secret-host" not in resp.text
 
 
-def test_chat_reports_mid_stream_failure_after_partial_answer(
-    client, auth, chat_provider
-):
+def test_chat_reports_mid_stream_failure_after_partial_answer(client, auth, chat_provider):
     chat_provider.fail_after_chunks = True
 
     resp = client.post("/api/chat", json={"question": "hi"}, headers=auth)

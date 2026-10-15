@@ -6,7 +6,6 @@ Handles PDF parsing, text extraction, and validation with proper error handling.
 
 import io
 from dataclasses import dataclass
-from typing import List
 
 from pypdf import PdfReader
 
@@ -23,7 +22,7 @@ PDF_MAGIC = b"%PDF-"
 class ExtractedPage:
     """
     Represents a single extracted page from a PDF.
-    
+
     Attributes:
         text: The extracted text content.
         page_number: Zero-based page index.
@@ -36,9 +35,9 @@ class ExtractedPage:
 class PDFService:
     """
     Service for processing PDF files.
-    
+
     Handles validation, reading, and text extraction from PDF documents.
-    
+
     Attributes:
         max_pages: Maximum number of pages to process per PDF.
     """
@@ -46,7 +45,7 @@ class PDFService:
     def __init__(self, settings: Settings):
         """
         Initialize the PDF service.
-        
+
         Args:
             settings: Application settings containing processing limits.
         """
@@ -56,10 +55,10 @@ class PDFService:
     def validate_filename(self, filename: str) -> None:
         """
         Validate that the file is a PDF based on filename.
-        
+
         Args:
             filename: The name of the uploaded file.
-        
+
         Raises:
             InvalidFileTypeError: If the file is not a PDF.
         """
@@ -80,17 +79,17 @@ class PDFService:
             logger.warning("Upload %s has no PDF header", filename)
             raise InvalidFileTypeError(f"File '{filename}' is not a valid PDF")
 
-    def extract_text(self, file_content: bytes, filename: str) -> List[ExtractedPage]:
+    def extract_text(self, file_content: bytes, filename: str) -> list[ExtractedPage]:
         """
         Extract text from a PDF file.
-        
+
         Args:
             file_content: The raw bytes of the PDF file.
             filename: The original filename (for logging).
-        
+
         Returns:
             List of ExtractedPage objects containing text from each page.
-        
+
         Raises:
             PDFProcessingError: If PDF parsing fails.
             EmptyPDFError: If no text could be extracted.
@@ -98,7 +97,7 @@ class PDFService:
         try:
             pdf_reader = PdfReader(io.BytesIO(file_content))
             num_pages = min(len(pdf_reader.pages), self.max_pages)
-            
+
             logger.info(
                 f"Processing PDF: {filename}",
                 extra={
@@ -107,16 +106,14 @@ class PDFService:
                 },
             )
 
-            extracted_pages: List[ExtractedPage] = []
+            extracted_pages: list[ExtractedPage] = []
 
             for i in range(num_pages):
                 page = pdf_reader.pages[i]
                 text = page.extract_text()
 
                 if text and text.strip():
-                    extracted_pages.append(
-                        ExtractedPage(text=text.strip(), page_number=i)
-                    )
+                    extracted_pages.append(ExtractedPage(text=text.strip(), page_number=i))
 
             if not extracted_pages:
                 logger.warning(f"No extractable text in PDF: {filename}")

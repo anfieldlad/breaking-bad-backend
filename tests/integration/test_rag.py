@@ -21,7 +21,7 @@ def _chat(client, auth, question):
     for line in resp.text.splitlines():
         if not line.startswith("data: "):
             continue
-        payload = json.loads(line[len("data: "):])
+        payload = json.loads(line[len("data: ") :])
         if isinstance(payload.get("sources"), list):
             sources = payload["sources"]
         answer += payload.get("answer", "")

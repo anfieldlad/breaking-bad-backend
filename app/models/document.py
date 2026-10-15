@@ -5,17 +5,16 @@ Represents the core business entity of the application.
 """
 
 from dataclasses import dataclass, field
-from typing import List, Optional
 
 
 @dataclass
 class Document:
     """
     Represents a document chunk stored in the vector database.
-    
+
     Each document corresponds to a single page from a PDF file,
     containing the extracted text and its vector embedding.
-    
+
     Attributes:
         text: The extracted text content from the PDF page.
         embedding: Vector embedding of the text for similarity search.
@@ -26,11 +25,11 @@ class Document:
     """
 
     text: str
-    embedding: List[float]
+    embedding: list[float]
     filename: str
     chunk_id: int
-    id: Optional[str] = field(default=None)
-    score: Optional[float] = field(default=None)
+    id: str | None = field(default=None)
+    score: float | None = field(default=None)
 
     def to_dict(self) -> dict:
         """Convert document to dictionary for MongoDB insertion."""

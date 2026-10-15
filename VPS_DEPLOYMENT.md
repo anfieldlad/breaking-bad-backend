@@ -1,6 +1,6 @@
 # VPS Deployment Guide
 
-This guide provides step-by-step instructions to deploy the Breaking B.A.D. FastAPI backend onto a Linux VPS (Virtual Private Server) such as Ubuntu 22.04 or 24.04.
+This guide provides step-by-step instructions to deploy the Breaking B.A.D. FastAPI backend onto a Linux VPS (Virtual Private Server) such as Ubuntu 24.04. **Python 3.11+ is required** (Ubuntu 22.04 ships 3.10; install a newer Python first).
 
 ## Is this project VPS ready?
 

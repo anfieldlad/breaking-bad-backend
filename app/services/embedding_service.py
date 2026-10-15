@@ -6,8 +6,6 @@ for the rest of the application. The concrete backend (Google Gemini or any
 OpenAI-compatible endpoint) is selected from configuration.
 """
 
-from typing import List
-
 from app.core.exceptions import EmbeddingError
 from app.core.logging import get_logger
 from app.services.providers import EmbeddingProvider
@@ -35,51 +33,51 @@ class EmbeddingService:
         """
         self.provider = provider
 
-    def embed_document(self, text: str) -> List[float]:
+    def embed_document(self, text: str) -> list[float]:
         """
         Generate embedding for a document chunk.
-        
+
         Uses RETRIEVAL_DOCUMENT task type optimized for document storage.
-        
+
         Args:
             text: The document text to embed.
-        
+
         Returns:
             List of float values representing the embedding vector.
-        
+
         Raises:
             EmbeddingError: If embedding generation fails.
         """
         return self._generate_embedding(text, task_type="RETRIEVAL_DOCUMENT")
 
-    def embed_query(self, query: str) -> List[float]:
+    def embed_query(self, query: str) -> list[float]:
         """
         Generate embedding for a search query.
-        
+
         Uses RETRIEVAL_QUERY task type optimized for search queries.
-        
+
         Args:
             query: The search query to embed.
-        
+
         Returns:
             List of float values representing the embedding vector.
-        
+
         Raises:
             EmbeddingError: If embedding generation fails.
         """
         return self._generate_embedding(query, task_type="RETRIEVAL_QUERY")
 
-    def _generate_embedding(self, text: str, task_type: str) -> List[float]:
+    def _generate_embedding(self, text: str, task_type: str) -> list[float]:
         """
         Internal method to generate embeddings with specified task type.
-        
+
         Args:
             text: The text to embed.
             task_type: The embedding task type (RETRIEVAL_DOCUMENT or RETRIEVAL_QUERY).
-        
+
         Returns:
             List of float values representing the embedding vector.
-        
+
         Raises:
             EmbeddingError: If embedding generation fails.
         """

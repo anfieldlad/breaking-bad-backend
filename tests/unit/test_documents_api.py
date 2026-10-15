@@ -22,9 +22,7 @@ def test_count(client, auth, repository):
 
 def test_cleanup_rejects_wrong_password(client, auth, repository):
     _seed(repository, "a.pdf")
-    resp = client.delete(
-        "/api/documents?all=true", headers={**auth, "X-Cleanup-Password": "nope"}
-    )
+    resp = client.delete("/api/documents?all=true", headers={**auth, "X-Cleanup-Password": "nope"})
     assert resp.status_code == 403
     assert repository.count_documents() == 1
 
@@ -39,9 +37,7 @@ def test_cleanup_rejects_missing_password(client, auth, repository):
 def test_cleanup_disabled_without_configured_password(client, auth, settings, repository):
     _seed(repository, "a.pdf")
     settings.cleanup_password = ""
-    resp = client.delete(
-        "/api/documents?all=true", headers={**auth, "X-Cleanup-Password": ""}
-    )
+    resp = client.delete("/api/documents?all=true", headers={**auth, "X-Cleanup-Password": ""})
     assert resp.status_code == 403
     assert "disabled" in resp.json()["detail"]
     assert repository.count_documents() == 1

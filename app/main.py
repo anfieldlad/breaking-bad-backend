@@ -7,7 +7,6 @@ routes, and event handlers.
 
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
-from typing import Optional
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
@@ -38,7 +37,7 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
         logger.info("Application shutdown complete")
 
 
-def create_app(settings: Optional[Settings] = None) -> FastAPI:
+def create_app(settings: Settings | None = None) -> FastAPI:
     """
     Create and configure the FastAPI application.
 

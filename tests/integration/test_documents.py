@@ -18,9 +18,7 @@ def test_delete_requires_a_selector(client, cleanup_headers):
 
 
 def test_delete_rejects_both_selectors(client, cleanup_headers):
-    resp = client.delete(
-        "/api/documents?all=true&filename=x.pdf", headers=cleanup_headers
-    )
+    resp = client.delete("/api/documents?all=true&filename=x.pdf", headers=cleanup_headers)
     assert resp.status_code == 400
 
 
@@ -47,9 +45,7 @@ def test_delete_by_filename(client, cleanup_headers, mongo, ingest):
     filename, _ = ingest("byfile", "beta document")
     assert mongo.count_documents({"filename": filename}) >= 1
 
-    resp = client.delete(
-        f"/api/documents?filename={filename}", headers=cleanup_headers
-    )
+    resp = client.delete(f"/api/documents?filename={filename}", headers=cleanup_headers)
     assert resp.status_code == 200
     assert resp.json()["deleted_count"] >= 1
     assert mongo.count_documents({"filename": filename}) == 0
@@ -57,9 +53,7 @@ def test_delete_by_filename(client, cleanup_headers, mongo, ingest):
 
 def test_delete_all_is_safe_with_real_data(client, auth, cleanup_headers, mongo, ingest):
     """`all=true` must wipe the collection — but never when real data exists."""
-    real = mongo.count_documents(
-        {"filename": {"$not": {"$regex": f"^{TEST_PREFIX}"}}}
-    )
+    real = mongo.count_documents({"filename": {"$not": {"$regex": f"^{TEST_PREFIX}"}}})
     if real > 0:
         pytest.skip(
             f"collection holds {real} non-test document(s); "

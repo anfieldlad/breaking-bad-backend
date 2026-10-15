@@ -6,7 +6,6 @@ with vector search capabilities.
 """
 
 import uuid
-from typing import List, Optional
 
 from pymongo import MongoClient
 from pymongo.collection import Collection
@@ -32,7 +31,7 @@ class MongoDocumentRepository(DocumentRepositoryBase):
     def __init__(
         self,
         settings: Settings,
-        client: Optional[MongoClient] = None,
+        client: MongoClient | None = None,
     ):
         """
         Initialize the MongoDB repository.
@@ -54,7 +53,7 @@ class MongoDocumentRepository(DocumentRepositoryBase):
             settings.collection_name,
         )
 
-    def insert_many(self, documents: List[Document]) -> int:
+    def insert_many(self, documents: list[Document]) -> int:
         """Insert multiple documents into MongoDB."""
         if not documents:
             logger.warning("Attempted to insert empty document list")
@@ -69,7 +68,7 @@ class MongoDocumentRepository(DocumentRepositoryBase):
         logger.info("Inserted %d documents", len(result.inserted_ids))
         return len(result.inserted_ids)
 
-    def replace_file(self, filename: str, documents: List[Document]) -> int:
+    def replace_file(self, filename: str, documents: list[Document]) -> int:
         """
         Replace all chunks of `filename` with `documents`.
 
@@ -99,9 +98,9 @@ class MongoDocumentRepository(DocumentRepositoryBase):
 
     def vector_search(
         self,
-        query_embedding: List[float],
+        query_embedding: list[float],
         limit: int = 5,
-    ) -> List[Document]:
+    ) -> list[Document]:
         """
         Perform vector similarity search using MongoDB Atlas Vector Search.
 

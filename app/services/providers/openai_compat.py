@@ -7,7 +7,7 @@ vLLM, Ollama, LM Studio, Together, and Groq. The endpoint is selected via the
 base_url argument.
 """
 
-from typing import Generator, List
+from collections.abc import Generator
 
 from openai import OpenAI
 
@@ -29,7 +29,7 @@ class OpenAIChatProvider(ChatProvider):
     def stream(
         self,
         system_instruction: str,
-        messages: List[ChatMessage],
+        messages: list[ChatMessage],
     ) -> Generator[ChatChunk, None, None]:
         oai_messages = [{"role": "system", "content": system_instruction}]
         for m in messages:
@@ -63,7 +63,7 @@ class OpenAIEmbeddingProvider(EmbeddingProvider):
         self.client = OpenAI(api_key=api_key, base_url=base_url)
         self.model = model
 
-    def embed(self, text: str, task_type: str) -> List[float]:
+    def embed(self, text: str, task_type: str) -> list[float]:
         # OpenAI-compatible embeddings have no task_type concept; it is ignored.
         response = self.client.embeddings.create(
             model=self.model,
