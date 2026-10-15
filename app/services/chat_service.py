@@ -29,6 +29,11 @@ Your primary source of truth is the provided 'Context'.
 - Be concise but thorough in your responses."""
 
 
+def _sse(payload: dict) -> str:
+    """Format a payload as a single Server-Sent Events `data:` frame."""
+    return f"data: {json.dumps(payload)}\n\n"
+
+
 class ChatService:
     """
     Service for handling chat interactions with RAG capabilities.
@@ -88,26 +93,27 @@ class ChatService:
         
         Yields:
             SSE-formatted strings containing sources, thoughts, and answers.
-        
-        Raises:
-            ChatGenerationError: If response generation fails.
+            If generation fails, a final ``{"error": ...}`` event is emitted
+            instead of raising: the HTTP status (200) has already been sent
+            once streaming starts, so failures must be reported in-band.
         """
         try:
             # Step 1: Retrieve context
             context, sources = self._retrieve_context(question)
-            
+
             # Step 2: Send sources first
-            yield f"data: {json.dumps({'sources': sources})}\n\n"
-            
+            yield _sse({"sources": sources})
+
             # Step 3: Build conversation messages
             messages = self._build_messages(question, history)
 
             # Step 4: Generate streaming response
             yield from self._stream_response(messages, context)
-            
-        except Exception as e:
-            logger.error(f"Chat generation failed: {e}")
-            raise ChatGenerationError(f"Failed to generate response: {e}")
+
+        except Exception:
+            logger.exception("Chat generation failed")
+            # Generic message only: provider/DB errors may contain internals.
+            yield _sse({"error": ChatGenerationError.detail})
 
     def _retrieve_context(self, question: str) -> tuple[str, List[str]]:
         """
@@ -193,4 +199,4 @@ class ChatService:
                 data["answer"] = chunk.answer
 
             if data:
-                yield f"data: {json.dumps(data)}\n\n"
+                yield _sse(data)

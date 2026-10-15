@@ -102,7 +102,8 @@ def get_chat_service(
 
 
 async def verify_api_key(
-    api_key: str = Security(api_key_header),
+    settings: SettingsDep,
+    api_key: Optional[str] = Security(api_key_header),
 ) -> str:
     """
     Verify the API key from the request header.
@@ -116,8 +117,6 @@ async def verify_api_key(
     Raises:
         HTTPException: If the API key is missing or invalid.
     """
-    settings = get_settings()
-    
     if api_key is None:
         logger.warning("API request without API key")
         raise HTTPException(

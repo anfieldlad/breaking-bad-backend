@@ -4,6 +4,7 @@ Document management endpoints.
 Provides cleanup/maintenance operations over the stored document collection.
 """
 
+import hmac
 from typing import Optional
 
 from fastapi import APIRouter, Header, HTTPException, Query
@@ -41,7 +42,10 @@ async def count_documents(
     responses={
         400: {"model": ErrorResponse, "description": "Missing 'filename' or 'all'"},
         401: {"model": ErrorResponse, "description": "Invalid or missing API key"},
-        403: {"model": ErrorResponse, "description": "Invalid or missing cleanup password"},
+        403: {
+            "model": ErrorResponse,
+            "description": "Invalid/missing cleanup password, or cleanup disabled",
+        },
         500: {"model": ErrorResponse, "description": "Internal server error"},
         503: {"model": ErrorResponse, "description": "Database error"},
     },
@@ -49,8 +53,9 @@ async def count_documents(
     description=(
         "Delete stored document chunks. Provide `filename` to delete a single "
         "file's chunks, or `all=true` to wipe the entire collection. One of the "
-        "two is required as a safety guard. When a cleanup password is configured "
-        "on the server, the `X-Cleanup-Password` header is also required."
+        "two is required as a safety guard. The `X-Cleanup-Password` header must "
+        "match the server's CLEANUP_PASSWORD; if none is configured, cleanup is "
+        "disabled."
     ),
 )
 async def delete_documents(
@@ -88,14 +93,22 @@ async def delete_documents(
     Raises:
         HTTPException: If no selector is given, or on database errors.
     """
-    # Master password gate (only enforced when configured on the server)
-    if settings.cleanup_password:
-        if cleanup_password != settings.cleanup_password:
-            logger.warning("Cleanup attempt with invalid/missing password")
-            raise HTTPException(
-                status_code=403,
-                detail="Invalid or missing cleanup password.",
-            )
+    # Master password gate. Fail closed: without a configured password the
+    # destructive endpoint is disabled rather than left open.
+    if not settings.cleanup_password:
+        logger.warning("Cleanup attempt while CLEANUP_PASSWORD is not configured")
+        raise HTTPException(
+            status_code=403,
+            detail="Document cleanup is disabled: no cleanup password is configured.",
+        )
+    if not hmac.compare_digest(
+        (cleanup_password or "").encode(), settings.cleanup_password.encode()
+    ):
+        logger.warning("Cleanup attempt with invalid/missing password")
+        raise HTTPException(
+            status_code=403,
+            detail="Invalid or missing cleanup password.",
+        )
 
     if not filename and not all:
         raise HTTPException(

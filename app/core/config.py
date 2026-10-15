@@ -20,7 +20,7 @@ class Settings(BaseSettings):
     collection_name: str = "documents"
 
     # Master password required for destructive document cleanup.
-    # When empty, the cleanup endpoint is not password-gated.
+    # When empty, the cleanup endpoint is disabled (fail closed).
     cleanup_password: str = ""
 
     # ----- LLM provider selection -----

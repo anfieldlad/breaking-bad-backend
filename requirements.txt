@@ -2,23 +2,23 @@
 # Pinned versions for reproducible builds
 
 # Web framework
-fastapi==0.115.6
-uvicorn[standard]==0.34.0
-gunicorn==23.0.0
+fastapi==0.143.1
+uvicorn[standard]==0.54.0
+gunicorn==26.2.0
 
 # Request handling
-python-multipart==0.0.20
+python-multipart==0.0.32
 
 # Database
-pymongo==4.10.1
+pymongo==4.19.0
 
 # AI/ML
-google-genai==0.5.0
-openai==1.59.6
+google-genai==2.31.0
+openai==3.31.0
 
 # PDF processing
-pypdf==5.1.0
+pypdf==6.20.1
 
 # Configuration
-python-dotenv==1.0.1
-pydantic-settings==2.7.1
+python-dotenv==1.2.4
+pydantic-settings==2.16.0

@@ -122,12 +122,16 @@ python main.py
 ```bash
 # Delete all chunks from one file
 curl -X DELETE "http://localhost:8000/api/documents?filename=document.pdf" \
-  -H "X-API-Key: your_secret_api_key"
+  -H "X-API-Key: your_secret_api_key" \
+  -H "X-Cleanup-Password: your_cleanup_password"
 
 # Wipe the entire collection
 curl -X DELETE "http://localhost:8000/api/documents?all=true" \
-  -H "X-API-Key: your_secret_api_key"
+  -H "X-API-Key: your_secret_api_key" \
+  -H "X-Cleanup-Password: your_cleanup_password"
 ```
+
+> Cleanup is **disabled** (always `403`) unless `CLEANUP_PASSWORD` is set.
 
 ### Interactive Documentation
 
@@ -197,7 +201,9 @@ breaking-bad-backend/
 │       ├── pdf_service.py          # PDF processing
 │       ├── chat_service.py         # RAG orchestration
 │       └── ingestion_service.py    # Ingestion pipeline
-├── tests/                      # Functional test suite (pytest)
+├── tests/
+│   ├── unit/                   # Offline tests with in-memory fakes (default)
+│   └── integration/            # Live tests against Atlas + LLM (opt-in)
 ├── main.py                     # Entry point
 ├── requirements.txt            # Dependencies (pinned)
 ├── requirements-dev.txt        # Test/dev dependencies
@@ -224,41 +230,44 @@ All configuration is managed via environment variables with sensible defaults:
 | `DB_NAME` | Database name | `rag_app` |
 | `COLLECTION_NAME` | Collection name | `documents` |
 | `MAX_PAGES_PER_PDF` | Max pages to process | `20` |
+| `CLEANUP_PASSWORD` | Password for `DELETE /api/documents`; empty disables cleanup | `""` |
 
 ## 🧪 Testing
-
-The suite under `tests/` runs **functional tests against the live services**
-configured in your `.env` (MongoDB Atlas + the chat/embedding endpoint). It is
-safe to run repeatedly:
-
-- Every test document uses a `__pytest__` filename prefix and is auto-deleted
-  before and after each test.
-- The destructive `?all=true` test **skips itself** if the collection holds any
-  real (non-test) documents, so it never wipes your data.
-- The RAG test creates the vector index (with the live embedding dimension) if
-  it is missing, then waits until it is queryable.
 
 ```bash
 # Install test dependencies (includes runtime deps)
 pip install -r requirements-dev.txt
 
-# Run the whole suite
+# Unit tests (default): offline, no .env or network needed
 pytest
 
-# Run a subset
-pytest tests/test_documents.py
-pytest -k rag
+# Live functional tests against the services in your .env
+pytest -m integration
 ```
+
+**Unit tests** (`tests/unit/`) replace MongoDB and the LLM providers with
+in-memory fakes via FastAPI dependency overrides, so they run anywhere,
+including CI.
+
+**Integration tests** (`tests/integration/`) hit MongoDB Atlas and the
+configured chat/embedding endpoint. They are safe to run repeatedly:
+
+- Every test document uses a `__pytest__` filename prefix and is auto-deleted
+  before and after each test.
+- The destructive `?all=true` test **skips itself** if the collection holds any
+  real (non-test) documents, so it never wipes your data.
+- Cleanup tests skip when `CLEANUP_PASSWORD` is not configured.
+- The RAG test creates the vector index (with the live embedding dimension) if
+  it is missing, then waits until it is queryable.
 
 | Test file | Covers |
 |-----------|--------|
-| `test_health.py` | `/health` |
-| `test_llm.py` | Live chat + embedding provider connectivity |
-| `test_documents.py` | Ingest, count, and cleanup endpoints (incl. auth/guards) |
-| `test_rag.py` | End-to-end RAG: ingest → vector search → grounded answer |
-
-> Requires a populated `.env` and network access. Without them the app cannot
-> start and the suite will error on collection.
+| `unit/test_chat_api.py` | SSE stream shape, in-band `error` events, no leaked internals |
+| `unit/test_documents_api.py` | Count + cleanup password gate |
+| `integration/test_health.py` | `/health` |
+| `integration/test_llm.py` | Live chat + embedding provider connectivity |
+| `integration/test_documents.py` | Ingest, count, and cleanup endpoints (incl. auth/guards) |
+| `integration/test_rag.py` | End-to-end RAG: ingest → vector search → grounded answer |
 
 ## 🚢 Deployment
 

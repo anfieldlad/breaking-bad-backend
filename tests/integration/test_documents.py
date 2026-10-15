@@ -2,7 +2,7 @@
 
 import pytest
 
-from tests.conftest import TEST_PREFIX
+from tests.integration.conftest import TEST_PREFIX
 
 pytestmark = pytest.mark.integration
 
@@ -26,7 +26,7 @@ def test_delete_rejects_both_selectors(client, cleanup_headers):
 
 def test_delete_rejects_wrong_password(client, auth, settings):
     if not settings.cleanup_password:
-        pytest.skip("no cleanup password configured; password gate disabled")
+        pytest.skip("CLEANUP_PASSWORD not configured; cleanup endpoint is disabled")
     resp = client.delete(
         "/api/documents?all=true",
         headers={**auth, "X-Cleanup-Password": "definitely-wrong"},
