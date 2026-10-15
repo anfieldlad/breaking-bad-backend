@@ -20,7 +20,9 @@ app/
 ### Key Design Decisions
 
 - **Single Responsibility**: Each module handles one concern
-- **Dependency Injection**: FastAPI's `Depends()` for loose coupling
+- **Dependency Injection**: services are built once at startup (`app/api/container.py`) and injected with `Depends()`
+- **Observability**: every request gets an `X-Request-ID` that appears in all its log lines; `LOG_FORMAT=json` for structured logs
+- **Centralized errors**: services raise typed exceptions; `app/api/errors.py` maps them to `{"detail": ...}` responses without leaking internals
 - **Repository Pattern**: Abstract data access for testability
 - **Service Layer**: Business logic isolated from HTTP concerns
 - **Type Safety**: Pydantic for validation, type hints throughout
@@ -39,6 +41,8 @@ app/
 ## 🚀 Quick Start
 
 ### 1. Clone & Install
+
+Requires **Python 3.11+**.
 
 ```bash
 git clone https://github.com/anfieldlad/breaking-bad-backend.git
@@ -111,8 +115,9 @@ python main.py
 
 | Method | Endpoint | Description | Auth |
 |--------|----------|-------------|------|
-| `GET` | `/health` | Health check | ❌ |
-| `POST` | `/api/ingest` | Upload & process PDF (max 20 pages) | ✅ |
+| `GET` | `/health` | Liveness (process is up; keep-alive) | ❌ |
+| `GET` | `/health/ready` | Readiness (MongoDB reachable), `503` otherwise | ❌ |
+| `POST` | `/api/ingest` | Upload & process PDF (max 20 pages, 10 MB); re-uploading a filename replaces it | ✅ |
 | `POST` | `/api/chat` | Ask questions (streaming SSE response) | ✅ |
 | `GET` | `/api/documents/count` | Count stored document chunks | ✅ |
 | `DELETE` | `/api/documents` | Cleanup documents: `?filename=...` or `?all=true` | ✅ |
@@ -122,12 +127,16 @@ python main.py
 ```bash
 # Delete all chunks from one file
 curl -X DELETE "http://localhost:8000/api/documents?filename=document.pdf" \
-  -H "X-API-Key: your_secret_api_key"
+  -H "X-API-Key: your_secret_api_key" \
+  -H "X-Cleanup-Password: your_cleanup_password"
 
 # Wipe the entire collection
 curl -X DELETE "http://localhost:8000/api/documents?all=true" \
-  -H "X-API-Key: your_secret_api_key"
+  -H "X-API-Key: your_secret_api_key" \
+  -H "X-Cleanup-Password: your_cleanup_password"
 ```
+
+> Cleanup is **disabled** (always `403`) unless `CLEANUP_PASSWORD` is set.
 
 ### Interactive Documentation
 
@@ -178,13 +187,16 @@ breaking-bad-backend/
 │   │   ├── logging.py          # Structured logging
 │   │   └── exceptions.py       # Custom exceptions
 │   ├── api/
+│   │   ├── container.py        # Builds long-lived services at startup
 │   │   ├── dependencies.py     # Dependency injection
-│   │   ├── middleware.py       # Error handling middleware
+│   │   ├── errors.py           # Exception → HTTP response mapping
+│   │   ├── middleware.py       # Request ID + access log (pure ASGI)
 │   │   └── v1/
 │   │       ├── router.py       # Route aggregation
 │   │       ├── health.py       # Health endpoint
 │   │       ├── ingest.py       # PDF ingestion
-│   │       └── chat.py         # Chat endpoint
+│   │       ├── chat.py         # Chat endpoint
+│   │       └── documents.py    # Count / cleanup endpoints
 │   ├── models/
 │   │   ├── document.py         # Document domain model
 │   │   └── schemas.py          # Pydantic schemas
@@ -197,7 +209,9 @@ breaking-bad-backend/
 │       ├── pdf_service.py          # PDF processing
 │       ├── chat_service.py         # RAG orchestration
 │       └── ingestion_service.py    # Ingestion pipeline
-├── tests/                      # Functional test suite (pytest)
+├── tests/
+│   ├── unit/                   # Offline tests with in-memory fakes (default)
+│   └── integration/            # Live tests against Atlas + LLM (opt-in)
 ├── main.py                     # Entry point
 ├── requirements.txt            # Dependencies (pinned)
 ├── requirements-dev.txt        # Test/dev dependencies
@@ -224,41 +238,62 @@ All configuration is managed via environment variables with sensible defaults:
 | `DB_NAME` | Database name | `rag_app` |
 | `COLLECTION_NAME` | Collection name | `documents` |
 | `MAX_PAGES_PER_PDF` | Max pages to process | `20` |
+| `MAX_UPLOAD_MB` | Max PDF upload size (larger uploads get `413`) | `10` |
+| `CORS_ORIGINS` | Comma-separated browser origins allowed by CORS; empty disables CORS | `""` |
+| `GEMINI_INCLUDE_THOUGHTS` | Stream Gemini reasoning as `thought` events (Gemini 2.5+) | `true` |
+| `LOG_LEVEL` | `DEBUG` / `INFO` / `WARNING` / `ERROR` | `INFO` |
+| `LOG_FORMAT` | `text`, or `json` (one object per line, for log aggregation) | `text` |
+| `MONGO_TIMEOUT_MS` | MongoDB server-selection timeout | `5000` |
+| `CLEANUP_PASSWORD` | Password for `DELETE /api/documents`; empty disables cleanup | `""` |
 
 ## 🧪 Testing
-
-The suite under `tests/` runs **functional tests against the live services**
-configured in your `.env` (MongoDB Atlas + the chat/embedding endpoint). It is
-safe to run repeatedly:
-
-- Every test document uses a `__pytest__` filename prefix and is auto-deleted
-  before and after each test.
-- The destructive `?all=true` test **skips itself** if the collection holds any
-  real (non-test) documents, so it never wipes your data.
-- The RAG test creates the vector index (with the live embedding dimension) if
-  it is missing, then waits until it is queryable.
 
 ```bash
 # Install test dependencies (includes runtime deps)
 pip install -r requirements-dev.txt
 
-# Run the whole suite
+# Unit tests (default): offline, no .env or network needed
 pytest
 
-# Run a subset
-pytest tests/test_documents.py
-pytest -k rag
+# Live functional tests against the services in your .env
+pytest -m integration
+
+# Lint / format (config in pyproject.toml)
+ruff check . && ruff format --check .
 ```
+
+CI (`.github/workflows/ci.yml`) runs lint, format check, unit tests and
+`pip-audit` on Python 3.11 and 3.13.
+
+**Unit tests** (`tests/unit/`) replace MongoDB and the LLM providers with
+in-memory fakes via FastAPI dependency overrides, so they run anywhere,
+including CI.
+
+**Integration tests** (`tests/integration/`) hit MongoDB Atlas and the
+configured chat/embedding endpoint. They are safe to run repeatedly:
+
+- Every test document uses a `__pytest__` filename prefix and is auto-deleted
+  before and after each test.
+- The destructive `?all=true` test **skips itself** if the collection holds any
+  real (non-test) documents, so it never wipes your data.
+- Cleanup tests skip when `CLEANUP_PASSWORD` is not configured.
+- The RAG test creates the vector index (with the live embedding dimension) if
+  it is missing, then waits until it is queryable.
 
 | Test file | Covers |
 |-----------|--------|
-| `test_health.py` | `/health` |
-| `test_llm.py` | Live chat + embedding provider connectivity |
-| `test_documents.py` | Ingest, count, and cleanup endpoints (incl. auth/guards) |
-| `test_rag.py` | End-to-end RAG: ingest → vector search → grounded answer |
-
-> Requires a populated `.env` and network access. Without them the app cannot
-> start and the suite will error on collection.
+| `unit/test_chat_api.py` | SSE stream shape, in-band `error` events, no leaked internals |
+| `unit/test_documents_api.py` | Count + cleanup password gate |
+| `unit/test_ingest_api.py` | Upload validation (type, magic bytes, size), re-ingest replaces |
+| `unit/test_api_errors.py` | Auth, request limits, generic error responses |
+| `unit/test_document_repository.py` | Mongo repository against a mocked driver |
+| `unit/test_providers.py` | Gemini thought/answer parsing |
+| `unit/test_app_startup.py` | Lifespan wiring, fail-fast config, CORS |
+| `unit/test_observability.py` | Liveness/readiness, request IDs, JSON logs |
+| `integration/test_health.py` | `/health` |
+| `integration/test_llm.py` | Live chat + embedding provider connectivity |
+| `integration/test_documents.py` | Ingest, count, and cleanup endpoints (incl. auth/guards) |
+| `integration/test_rag.py` | End-to-end RAG: ingest → vector search → grounded answer |
 
 ## 🚢 Deployment
 

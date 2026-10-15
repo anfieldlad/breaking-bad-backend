@@ -7,19 +7,16 @@ vLLM, Ollama, LM Studio, Together, and Groq. The endpoint is selected via the
 base_url argument.
 """
 
-from typing import Generator, List
+from collections.abc import Generator
 
 from openai import OpenAI
 
-from app.core.logging import get_logger
 from app.services.providers.base import (
     ChatChunk,
     ChatMessage,
     ChatProvider,
     EmbeddingProvider,
 )
-
-logger = get_logger(__name__)
 
 
 class OpenAIChatProvider(ChatProvider):
@@ -32,7 +29,7 @@ class OpenAIChatProvider(ChatProvider):
     def stream(
         self,
         system_instruction: str,
-        messages: List[ChatMessage],
+        messages: list[ChatMessage],
     ) -> Generator[ChatChunk, None, None]:
         oai_messages = [{"role": "system", "content": system_instruction}]
         for m in messages:
@@ -49,6 +46,8 @@ class OpenAIChatProvider(ChatProvider):
             if not chunk.choices:
                 continue
             delta = chunk.choices[0].delta
+            if delta is None:
+                continue
             content = getattr(delta, "content", None)
             # Some OpenAI-compatible providers (e.g. Qwen, DeepSeek) expose
             # chain-of-thought separately as `reasoning_content`.
@@ -64,7 +63,7 @@ class OpenAIEmbeddingProvider(EmbeddingProvider):
         self.client = OpenAI(api_key=api_key, base_url=base_url)
         self.model = model
 
-    def embed(self, text: str, task_type: str) -> List[float]:
+    def embed(self, text: str, task_type: str) -> list[float]:
         # OpenAI-compatible embeddings have no task_type concept; it is ignored.
         response = self.client.embeddings.create(
             model=self.model,

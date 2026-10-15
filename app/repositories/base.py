@@ -6,7 +6,6 @@ and allowing different storage implementations (MongoDB, PostgreSQL, etc.).
 """
 
 from abc import ABC, abstractmethod
-from typing import List
 
 from app.models.document import Document
 
@@ -14,44 +13,56 @@ from app.models.document import Document
 class DocumentRepositoryBase(ABC):
     """
     Abstract base class for document repositories.
-    
+
     Defines the interface that all document repository implementations must follow.
     This enables the Dependency Inversion Principle - high-level modules (services)
     depend on this abstraction, not on concrete implementations.
     """
 
     @abstractmethod
-    def insert_many(self, documents: List[Document]) -> int:
+    def insert_many(self, documents: list[Document]) -> int:
         """
         Insert multiple documents into the repository.
-        
+
         Args:
             documents: List of Document objects to insert.
-        
+
         Returns:
             Number of documents successfully inserted.
-        
+
         Raises:
             DatabaseConnectionError: If the database connection fails.
         """
         pass
 
     @abstractmethod
+    def replace_file(self, filename: str, documents: list[Document]) -> int:
+        """
+        Store `documents` as the complete set of chunks for `filename`.
+
+        Any chunks previously stored for the same filename are removed, so
+        re-ingesting a file updates it instead of duplicating it.
+
+        Returns:
+            Number of documents inserted.
+        """
+
+    @abstractmethod
     def vector_search(
         self,
-        query_embedding: List[float],
+        query_embedding: list[float],
         limit: int = 5,
-    ) -> List[Document]:
+    ) -> list[Document]:
         """
         Perform vector similarity search.
-        
+
         Args:
             query_embedding: The query vector to search with.
             limit: Maximum number of results to return.
-        
+
         Returns:
             List of Document objects sorted by similarity.
-        
+
         Raises:
             VectorSearchError: If the vector search fails.
         """
@@ -61,7 +72,7 @@ class DocumentRepositoryBase(ABC):
     def count_documents(self) -> int:
         """
         Get the total count of documents in the repository.
-        
+
         Returns:
             Total number of documents.
         """
@@ -89,3 +100,10 @@ class DocumentRepositoryBase(ABC):
             Number of documents deleted.
         """
         pass
+
+    def ping(self) -> bool:
+        """Return True if the backing store is reachable."""
+        return True
+
+    def close(self) -> None:  # noqa: B027 - optional hook
+        """Release any underlying resources (connections, clients)."""

@@ -51,11 +51,18 @@ def auth(settings):
 
 @pytest.fixture(scope="session")
 def cleanup_headers(settings):
-    """Auth header plus the cleanup master password (if one is configured)."""
-    headers = {"X-API-Key": settings.api_key}
-    if settings.cleanup_password:
-        headers["X-Cleanup-Password"] = settings.cleanup_password
-    return headers
+    """
+    Auth header plus the cleanup master password.
+
+    Cleanup is disabled server-side without CLEANUP_PASSWORD, so tests that
+    need it are skipped when none is configured.
+    """
+    if not settings.cleanup_password:
+        pytest.skip("CLEANUP_PASSWORD not configured; cleanup endpoint is disabled")
+    return {
+        "X-API-Key": settings.api_key,
+        "X-Cleanup-Password": settings.cleanup_password,
+    }
 
 
 @pytest.fixture(scope="session")

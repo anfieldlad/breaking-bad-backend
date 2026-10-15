@@ -4,9 +4,14 @@ Pydantic schemas for API request and response validation.
 Provides type-safe data validation for all API endpoints.
 """
 
-from typing import List, Optional
+from typing import Literal
 
 from pydantic import BaseModel, Field
+
+# Request size limits: bound prompt size (and therefore LLM cost/latency).
+MAX_QUESTION_CHARS = 4_000
+MAX_HISTORY_ITEMS = 50
+MAX_HISTORY_TEXT_CHARS = 20_000
 
 
 # ----- Chat Schemas -----
@@ -15,35 +20,41 @@ from pydantic import BaseModel, Field
 class HistoryPart(BaseModel):
     """A single part of a message in the chat history."""
 
-    text: str
+    text: str = Field(..., max_length=MAX_HISTORY_TEXT_CHARS)
 
 
 class HistoryItem(BaseModel):
     """
     A single message in the conversation history.
-    
+
     Attributes:
         role: The role of the message sender ('user' or 'model').
         parts: List of message parts (typically containing text).
     """
 
-    role: str = Field(..., description="Role: 'user' or 'model'")
-    parts: List[HistoryPart]
+    role: Literal["user", "model"] = Field(..., description="Role: 'user' or 'model'")
+    parts: list[HistoryPart] = Field(..., max_length=10)
 
 
 class ChatRequest(BaseModel):
     """
     Request body for the chat endpoint.
-    
+
     Attributes:
         question: The user's question to be answered.
         history: Optional conversation history for multi-turn chat.
     """
 
-    question: str = Field(..., description="The question to ask")
-    history: Optional[List[HistoryItem]] = Field(
+    question: str = Field(
+        ...,
+        min_length=1,
+        max_length=MAX_QUESTION_CHARS,
+        description="The question to ask",
+    )
+    history: list[HistoryItem] = Field(
         default_factory=list,
-        description="Previous conversation history for context",
+        max_length=MAX_HISTORY_ITEMS,
+        description="Previous conversation history for context (oldest first)",
     )
 
     model_config = {
@@ -74,6 +85,12 @@ class IngestResponse(BaseModel):
 # ----- Document Management Schemas -----
 
 
+class CountResponse(BaseModel):
+    """Response body for the document count endpoint."""
+
+    count: int = Field(..., description="Number of stored document chunks")
+
+
 class DeleteResponse(BaseModel):
     """Response body for document deletion/cleanup."""
 
@@ -102,7 +119,7 @@ class ErrorResponse(BaseModel):
 class ValidationErrorDetail(BaseModel):
     """Detail of a validation error."""
 
-    loc: List[str] = Field(..., description="Location of the error")
+    loc: list[str] = Field(..., description="Location of the error")
     msg: str = Field(..., description="Error message")
     type: str = Field(..., description="Error type")
 
@@ -110,4 +127,4 @@ class ValidationErrorDetail(BaseModel):
 class ValidationErrorResponse(BaseModel):
     """Response for validation errors (422)."""
 
-    detail: List[ValidationErrorDetail]
+    detail: list[ValidationErrorDetail]

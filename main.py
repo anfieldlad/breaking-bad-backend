@@ -6,7 +6,7 @@ It imports the FastAPI app from the app package and runs it with uvicorn.
 
 Usage:
     python main.py
-    
+
 Or with uvicorn directly:
     uvicorn app.main:app --reload
 """
