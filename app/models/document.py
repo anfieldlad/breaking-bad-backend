@@ -22,6 +22,7 @@ class Document:
         filename: Original filename of the source PDF.
         chunk_id: Zero-based page/chunk index within the source file.
         id: Optional MongoDB ObjectId as string.
+        score: Similarity score, set on vector search results.
     """
 
     text: str
@@ -29,6 +30,7 @@ class Document:
     filename: str
     chunk_id: int
     id: Optional[str] = field(default=None)
+    score: Optional[float] = field(default=None)
 
     def to_dict(self) -> dict:
         """Convert document to dictionary for MongoDB insertion."""
@@ -48,4 +50,5 @@ class Document:
             filename=data.get("filename", ""),
             chunk_id=data.get("chunk_id", 0),
             id=str(data.get("_id")) if data.get("_id") else None,
+            score=data.get("score"),
         )

@@ -42,8 +42,13 @@ class Settings(BaseSettings):
     app_version: str = "1.0.0"
     debug: bool = False
 
+    # Comma-separated browser origins allowed by CORS. Leave empty when the
+    # frontend calls the API server-side (e.g. through a BFF proxy).
+    cors_origins: str = ""
+
     # PDF processing limits
     max_pages_per_pdf: int = 20
+    max_upload_mb: int = 10
 
     # Vector search settings
     vector_index_name: str = "vector_index"
@@ -55,6 +60,18 @@ class Settings(BaseSettings):
     # OpenAI examples: chat="gpt-4o-mini", embedding="text-embedding-3-small"
     embedding_model: str = "gemini-embedding-001"
     chat_model: str = "gemini-2.5-flash-lite"
+
+    # Ask Gemini to stream its reasoning ("thought" SSE events). Requires a
+    # thinking-capable model (Gemini 2.5+).
+    gemini_include_thoughts: bool = True
+
+    @property
+    def cors_origin_list(self) -> list[str]:
+        return [o.strip() for o in self.cors_origins.split(",") if o.strip()]
+
+    @property
+    def max_upload_bytes(self) -> int:
+        return self.max_upload_mb * 1024 * 1024
 
     model_config = SettingsConfigDict(
         env_file=".env",

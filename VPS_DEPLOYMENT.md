@@ -100,6 +100,10 @@ server {
     listen 80;
     server_name breaking-backend.badai.app;
 
+    # Must be >= MAX_UPLOAD_MB (Nginx defaults to 1 MB and would reject
+    # larger PDFs with its own 413 before they reach the app).
+    client_max_body_size 12m;
+
     location / {
         proxy_pass http://127.0.0.1:8001;
         proxy_set_header Host $host;

@@ -4,9 +4,14 @@ Pydantic schemas for API request and response validation.
 Provides type-safe data validation for all API endpoints.
 """
 
-from typing import List, Optional
+from typing import List, Literal
 
 from pydantic import BaseModel, Field
+
+# Request size limits: bound prompt size (and therefore LLM cost/latency).
+MAX_QUESTION_CHARS = 4_000
+MAX_HISTORY_ITEMS = 50
+MAX_HISTORY_TEXT_CHARS = 20_000
 
 
 # ----- Chat Schemas -----
@@ -15,7 +20,7 @@ from pydantic import BaseModel, Field
 class HistoryPart(BaseModel):
     """A single part of a message in the chat history."""
 
-    text: str
+    text: str = Field(..., max_length=MAX_HISTORY_TEXT_CHARS)
 
 
 class HistoryItem(BaseModel):
@@ -27,8 +32,8 @@ class HistoryItem(BaseModel):
         parts: List of message parts (typically containing text).
     """
 
-    role: str = Field(..., description="Role: 'user' or 'model'")
-    parts: List[HistoryPart]
+    role: Literal["user", "model"] = Field(..., description="Role: 'user' or 'model'")
+    parts: List[HistoryPart] = Field(..., max_length=10)
 
 
 class ChatRequest(BaseModel):
@@ -40,10 +45,16 @@ class ChatRequest(BaseModel):
         history: Optional conversation history for multi-turn chat.
     """
 
-    question: str = Field(..., description="The question to ask")
-    history: Optional[List[HistoryItem]] = Field(
+    question: str = Field(
+        ...,
+        min_length=1,
+        max_length=MAX_QUESTION_CHARS,
+        description="The question to ask",
+    )
+    history: List[HistoryItem] = Field(
         default_factory=list,
-        description="Previous conversation history for context",
+        max_length=MAX_HISTORY_ITEMS,
+        description="Previous conversation history for context (oldest first)",
     )
 
     model_config = {
@@ -72,6 +83,12 @@ class IngestResponse(BaseModel):
 
 
 # ----- Document Management Schemas -----
+
+
+class CountResponse(BaseModel):
+    """Response body for the document count endpoint."""
+
+    count: int = Field(..., description="Number of stored document chunks")
 
 
 class DeleteResponse(BaseModel):

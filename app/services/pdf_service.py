@@ -16,6 +16,8 @@ from app.core.logging import get_logger
 
 logger = get_logger(__name__)
 
+PDF_MAGIC = b"%PDF-"
+
 
 @dataclass
 class ExtractedPage:
@@ -64,6 +66,19 @@ class PDFService:
         if not filename.lower().endswith(".pdf"):
             logger.warning(f"Invalid file type uploaded: {filename}")
             raise InvalidFileTypeError(f"File '{filename}' is not a PDF")
+
+    def validate_content(self, file_content: bytes, filename: str) -> None:
+        """
+        Validate that the bytes look like a PDF (magic header), regardless
+        of the claimed filename.
+
+        Raises:
+            InvalidFileTypeError: If the content is not a PDF.
+        """
+        # The spec allows the header anywhere in the first 1024 bytes.
+        if PDF_MAGIC not in file_content[:1024]:
+            logger.warning("Upload %s has no PDF header", filename)
+            raise InvalidFileTypeError(f"File '{filename}' is not a valid PDF")
 
     def extract_text(self, file_content: bytes, filename: str) -> List[ExtractedPage]:
         """
@@ -116,5 +131,5 @@ class PDFService:
         except EmptyPDFError:
             raise
         except Exception as e:
-            logger.error(f"Failed to process PDF '{filename}': {e}")
-            raise PDFProcessingError(f"Failed to process PDF: {e}")
+            logger.exception("Failed to process PDF %s", filename)
+            raise PDFProcessingError() from e

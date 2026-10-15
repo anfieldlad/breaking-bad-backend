@@ -2,12 +2,11 @@
 Google Gemini provider implementations (via the google-genai SDK).
 """
 
-from typing import Generator, List
+from typing import Generator, Iterator, List
 
 from google import genai
 from google.genai import types
 
-from app.core.logging import get_logger
 from app.services.providers.base import (
     ChatChunk,
     ChatMessage,
@@ -15,15 +14,36 @@ from app.services.providers.base import (
     EmbeddingProvider,
 )
 
-logger = get_logger(__name__)
+
+def chunks_from_response(response: types.GenerateContentResponse) -> Iterator[ChatChunk]:
+    """
+    Convert one streamed Gemini response into provider-neutral chunks.
+
+    Gemini marks reasoning parts with the boolean `part.thought`; the text of
+    both reasoning and answer parts is in `part.text`.
+    """
+    if not response.candidates:
+        return
+    content = response.candidates[0].content
+    # The final chunk of a stream may carry only a finish reason.
+    if content is None or not content.parts:
+        return
+    for part in content.parts:
+        if not part.text:
+            continue
+        if part.thought:
+            yield ChatChunk(thought=part.text)
+        else:
+            yield ChatChunk(answer=part.text)
 
 
 class GeminiChatProvider(ChatProvider):
     """Streaming chat backend backed by Google Gemini."""
 
-    def __init__(self, api_key: str, model: str):
+    def __init__(self, api_key: str, model: str, include_thoughts: bool = True):
         self.client = genai.Client(api_key=api_key)
         self.model = model
+        self.include_thoughts = include_thoughts
 
     def stream(
         self,
@@ -43,17 +63,16 @@ class GeminiChatProvider(ChatProvider):
             contents=contents,
             config=types.GenerateContentConfig(
                 system_instruction=system_instruction,
+                thinking_config=(
+                    types.ThinkingConfig(include_thoughts=True)
+                    if self.include_thoughts
+                    else None
+                ),
             ),
         )
 
         for response in responses:
-            if not response.candidates:
-                continue
-            for part in response.candidates[0].content.parts:
-                thought = getattr(part, "thought", None)
-                text = part.text
-                if thought or text:
-                    yield ChatChunk(answer=text or None, thought=thought or None)
+            yield from chunks_from_response(response)
 
 
 class GeminiEmbeddingProvider(EmbeddingProvider):

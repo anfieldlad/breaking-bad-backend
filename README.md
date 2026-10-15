@@ -20,7 +20,8 @@ app/
 ### Key Design Decisions
 
 - **Single Responsibility**: Each module handles one concern
-- **Dependency Injection**: FastAPI's `Depends()` for loose coupling
+- **Dependency Injection**: services are built once at startup (`app/api/container.py`) and injected with `Depends()`
+- **Centralized errors**: services raise typed exceptions; `app/api/errors.py` maps them to `{"detail": ...}` responses without leaking internals
 - **Repository Pattern**: Abstract data access for testability
 - **Service Layer**: Business logic isolated from HTTP concerns
 - **Type Safety**: Pydantic for validation, type hints throughout
@@ -112,7 +113,7 @@ python main.py
 | Method | Endpoint | Description | Auth |
 |--------|----------|-------------|------|
 | `GET` | `/health` | Health check | ❌ |
-| `POST` | `/api/ingest` | Upload & process PDF (max 20 pages) | ✅ |
+| `POST` | `/api/ingest` | Upload & process PDF (max 20 pages, 10 MB); re-uploading a filename replaces it | ✅ |
 | `POST` | `/api/chat` | Ask questions (streaming SSE response) | ✅ |
 | `GET` | `/api/documents/count` | Count stored document chunks | ✅ |
 | `DELETE` | `/api/documents` | Cleanup documents: `?filename=...` or `?all=true` | ✅ |
@@ -182,13 +183,15 @@ breaking-bad-backend/
 │   │   ├── logging.py          # Structured logging
 │   │   └── exceptions.py       # Custom exceptions
 │   ├── api/
+│   │   ├── container.py        # Builds long-lived services at startup
 │   │   ├── dependencies.py     # Dependency injection
-│   │   ├── middleware.py       # Error handling middleware
+│   │   ├── errors.py           # Exception → HTTP response mapping
 │   │   └── v1/
 │   │       ├── router.py       # Route aggregation
 │   │       ├── health.py       # Health endpoint
 │   │       ├── ingest.py       # PDF ingestion
-│   │       └── chat.py         # Chat endpoint
+│   │       ├── chat.py         # Chat endpoint
+│   │       └── documents.py    # Count / cleanup endpoints
 │   ├── models/
 │   │   ├── document.py         # Document domain model
 │   │   └── schemas.py          # Pydantic schemas
@@ -230,6 +233,9 @@ All configuration is managed via environment variables with sensible defaults:
 | `DB_NAME` | Database name | `rag_app` |
 | `COLLECTION_NAME` | Collection name | `documents` |
 | `MAX_PAGES_PER_PDF` | Max pages to process | `20` |
+| `MAX_UPLOAD_MB` | Max PDF upload size (larger uploads get `413`) | `10` |
+| `CORS_ORIGINS` | Comma-separated browser origins allowed by CORS; empty disables CORS | `""` |
+| `GEMINI_INCLUDE_THOUGHTS` | Stream Gemini reasoning as `thought` events (Gemini 2.5+) | `true` |
 | `CLEANUP_PASSWORD` | Password for `DELETE /api/documents`; empty disables cleanup | `""` |
 
 ## 🧪 Testing
@@ -264,6 +270,11 @@ configured chat/embedding endpoint. They are safe to run repeatedly:
 |-----------|--------|
 | `unit/test_chat_api.py` | SSE stream shape, in-band `error` events, no leaked internals |
 | `unit/test_documents_api.py` | Count + cleanup password gate |
+| `unit/test_ingest_api.py` | Upload validation (type, magic bytes, size), re-ingest replaces |
+| `unit/test_api_errors.py` | Auth, request limits, generic error responses |
+| `unit/test_document_repository.py` | Mongo repository against a mocked driver |
+| `unit/test_providers.py` | Gemini thought/answer parsing |
+| `unit/test_app_startup.py` | Lifespan wiring, fail-fast config, CORS |
 | `integration/test_health.py` | `/health` |
 | `integration/test_llm.py` | Live chat + embedding provider connectivity |
 | `integration/test_documents.py` | Ingest, count, and cleanup endpoints (incl. auth/guards) |

@@ -8,13 +8,12 @@ using the Breaking B.A.D. persona.
 import json
 from typing import Generator, List, Optional
 
-from app.core.config import Settings
 from app.core.exceptions import ChatGenerationError
 from app.core.logging import get_logger
 from app.models.schemas import HistoryItem
 from app.repositories.base import DocumentRepositoryBase
 from app.services.embedding_service import EmbeddingService
-from app.services.providers import ChatMessage, get_chat_provider
+from app.services.providers import ChatMessage, ChatProvider
 
 logger = get_logger(__name__)
 
@@ -43,7 +42,6 @@ class ChatService:
 
     Attributes:
         provider: The configured chat backend.
-        model: Name of the chat model to use.
         repository: Document repository for retrieval.
         embedding_service: Service for generating query embeddings.
         vector_search_limit: Maximum number of context documents to retrieve.
@@ -51,28 +49,24 @@ class ChatService:
 
     def __init__(
         self,
-        settings: Settings,
+        provider: ChatProvider,
         repository: DocumentRepositoryBase,
         embedding_service: EmbeddingService,
+        vector_search_limit: int = 5,
     ):
         """
         Initialize the chat service.
-        
+
         Args:
-            settings: Application settings.
+            provider: The chat backend to use.
             repository: Document repository for context retrieval.
             embedding_service: Service for generating embeddings.
+            vector_search_limit: Maximum number of context documents.
         """
-        self.provider = get_chat_provider(settings)
-        self.model = settings.chat_model
+        self.provider = provider
         self.repository = repository
         self.embedding_service = embedding_service
-        self.vector_search_limit = settings.vector_search_limit
-
-        logger.info(
-            f"Chat service initialized "
-            f"(provider={settings.chat_provider}, model={self.model})"
-        )
+        self.vector_search_limit = vector_search_limit
 
     def generate_response_stream(
         self,
@@ -132,12 +126,10 @@ class ChatService:
         )
         
         if documents:
-            context = "\n\n".join([doc.text for doc in documents])
-            sources = list(set([doc.filename for doc in documents]))
-            logger.debug(
-                f"Retrieved {len(documents)} context documents",
-                extra={"sources": sources},
-            )
+            context = "\n\n".join(doc.text for doc in documents)
+            # Unique filenames, most relevant first.
+            sources = list(dict.fromkeys(doc.filename for doc in documents))
+            logger.debug("Retrieved %d context documents from %s", len(documents), sources)
         else:
             context = "No relevant context found in the documents."
             sources = []

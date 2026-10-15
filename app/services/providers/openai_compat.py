@@ -11,15 +11,12 @@ from typing import Generator, List
 
 from openai import OpenAI
 
-from app.core.logging import get_logger
 from app.services.providers.base import (
     ChatChunk,
     ChatMessage,
     ChatProvider,
     EmbeddingProvider,
 )
-
-logger = get_logger(__name__)
 
 
 class OpenAIChatProvider(ChatProvider):
@@ -49,6 +46,8 @@ class OpenAIChatProvider(ChatProvider):
             if not chunk.choices:
                 continue
             delta = chunk.choices[0].delta
+            if delta is None:
+                continue
             content = getattr(delta, "content", None)
             # Some OpenAI-compatible providers (e.g. Qwen, DeepSeek) expose
             # chain-of-thought separately as `reasoning_content`.

@@ -37,6 +37,18 @@ class DocumentRepositoryBase(ABC):
         pass
 
     @abstractmethod
+    def replace_file(self, filename: str, documents: List[Document]) -> int:
+        """
+        Store `documents` as the complete set of chunks for `filename`.
+
+        Any chunks previously stored for the same filename are removed, so
+        re-ingesting a file updates it instead of duplicating it.
+
+        Returns:
+            Number of documents inserted.
+        """
+
+    @abstractmethod
     def vector_search(
         self,
         query_embedding: List[float],
@@ -89,3 +101,6 @@ class DocumentRepositoryBase(ABC):
             Number of documents deleted.
         """
         pass
+
+    def close(self) -> None:
+        """Release any underlying resources (connections, clients)."""

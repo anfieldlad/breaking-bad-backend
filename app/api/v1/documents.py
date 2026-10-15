@@ -10,30 +10,30 @@ from typing import Optional
 from fastapi import APIRouter, Header, HTTPException, Query
 
 from app.api.dependencies import APIKeyDep, DocumentRepositoryDep, SettingsDep
-from app.core.exceptions import BreakingBadError
 from app.core.logging import get_logger
-from app.models.schemas import DeleteResponse, ErrorResponse
+from app.models.schemas import CountResponse, DeleteResponse, ErrorResponse
 
 logger = get_logger(__name__)
 
 router = APIRouter(tags=["Documents"])
 
 
+# Handlers are sync (`def`) so FastAPI runs the blocking database calls in
+# its threadpool instead of on the event loop.
+
+
 @router.get(
     "/documents/count",
+    response_model=CountResponse,
     summary="Count Documents",
     description="Return the total number of stored document chunks.",
 )
-async def count_documents(
+def count_documents(
     repository: DocumentRepositoryDep,
     _api_key: APIKeyDep,
-) -> dict:
+) -> CountResponse:
     """Return the total number of stored documents."""
-    try:
-        return {"count": repository.count_documents()}
-    except BreakingBadError as e:
-        logger.error(f"Count error: {e.detail}")
-        raise HTTPException(status_code=e.status_code, detail=e.detail)
+    return CountResponse(count=repository.count_documents())
 
 
 @router.delete(
@@ -58,7 +58,7 @@ async def count_documents(
         "disabled."
     ),
 )
-async def delete_documents(
+def delete_documents(
     repository: DocumentRepositoryDep,
     settings: SettingsDep,
     _api_key: APIKeyDep,
@@ -121,18 +121,11 @@ async def delete_documents(
             detail="Provide either 'filename' or 'all=true', not both.",
         )
 
-    try:
-        if all:
-            deleted = repository.delete_all()
-            logger.info(f"Cleanup: deleted all documents ({deleted})")
-        else:
-            deleted = repository.delete_by_filename(filename)
-            logger.info(f"Cleanup: deleted documents for '{filename}' ({deleted})")
+    if all:
+        deleted = repository.delete_all()
+        logger.info("Cleanup: deleted all documents (%d)", deleted)
+    else:
+        deleted = repository.delete_by_filename(filename)
+        logger.info("Cleanup: deleted documents for %s (%d)", filename, deleted)
 
-        return DeleteResponse(message="Success", deleted_count=deleted)
-    except BreakingBadError as e:
-        logger.error(f"Delete error: {e.detail}")
-        raise HTTPException(status_code=e.status_code, detail=e.detail)
-    except Exception as e:
-        logger.exception(f"Unexpected delete error: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+    return DeleteResponse(message="Success", deleted_count=deleted)

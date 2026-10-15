@@ -27,7 +27,11 @@ def get_chat_provider(settings: Settings) -> ChatProvider:
             raise ConfigurationError(
                 "GEMINI_API_KEY is required when CHAT_PROVIDER=gemini"
             )
-        return GeminiChatProvider(settings.gemini_api_key, settings.chat_model)
+        return GeminiChatProvider(
+            settings.gemini_api_key,
+            settings.chat_model,
+            include_thoughts=settings.gemini_include_thoughts,
+        )
 
     if provider == "openai":
         if not settings.openai_api_key:

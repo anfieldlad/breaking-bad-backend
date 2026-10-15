@@ -18,12 +18,17 @@ os.environ.setdefault("API_KEY", "unit-test-key")
 
 from fastapi.testclient import TestClient  # noqa: E402
 
-from app.api import dependencies  # noqa: E402
-from app.core.config import Settings, get_settings  # noqa: E402
+from app.api.container import Services  # noqa: E402
+from app.api.dependencies import get_app_settings, get_services  # noqa: E402
+from app.core.config import Settings  # noqa: E402
+from app.core.exceptions import DatabaseConnectionError  # noqa: E402
 from app.main import app  # noqa: E402
 from app.models.document import Document  # noqa: E402
 from app.repositories.base import DocumentRepositoryBase  # noqa: E402
 from app.services.chat_service import ChatService  # noqa: E402
+from app.services.embedding_service import EmbeddingService  # noqa: E402
+from app.services.ingestion_service import IngestionService  # noqa: E402
+from app.services.pdf_service import PDFService  # noqa: E402
 from app.services.providers.base import (  # noqa: E402
     ChatChunk,
     ChatProvider,
@@ -39,18 +44,25 @@ class FakeRepository(DocumentRepositoryBase):
 
     def __init__(self) -> None:
         self.documents: list[Document] = []
-        self.fail_search = False
+        self.fail_db = False
 
     def insert_many(self, documents: list[Document]) -> int:
         self.documents.extend(documents)
         return len(documents)
 
+    def replace_file(self, filename: str, documents: list[Document]) -> int:
+        self.documents = [d for d in self.documents if d.filename != filename]
+        return self.insert_many(documents)
+
     def vector_search(self, query_embedding: list[float], limit: int = 5) -> list[Document]:
-        if self.fail_search:
+        if self.fail_db:
             raise RuntimeError("simulated database outage at mongodb://secret-host")
         return self.documents[:limit]
 
     def count_documents(self) -> int:
+        if self.fail_db:
+            # Mirrors MongoDocumentRepository's error translation contract.
+            raise DatabaseConnectionError() from RuntimeError("outage at mongodb://secret-host")
         return len(self.documents)
 
     def delete_by_filename(self, filename: str) -> int:
@@ -106,33 +118,37 @@ def chat_provider() -> FakeChatProvider:
 
 
 @pytest.fixture
-def embedding_service(settings):
-    from app.services.embedding_service import EmbeddingService
-
-    service = EmbeddingService(settings)
-    service.provider = FakeEmbeddingProvider()
-    return service
+def embedding_service() -> EmbeddingService:
+    return EmbeddingService(FakeEmbeddingProvider())
 
 
 @pytest.fixture
-def client(settings, repository, chat_provider, embedding_service) -> Iterator[TestClient]:
-    def _chat_service() -> ChatService:
-        service = ChatService(
-            settings=settings,
+def services(settings, repository, chat_provider, embedding_service) -> Services:
+    return Services(
+        repository=repository,
+        ingestion_service=IngestionService(
+            pdf_service=PDFService(settings),
+            embedding_service=embedding_service,
+            repository=repository,
+        ),
+        chat_service=ChatService(
+            provider=chat_provider,
             repository=repository,
             embedding_service=embedding_service,
-        )
-        service.provider = chat_provider
-        return service
+            vector_search_limit=settings.vector_search_limit,
+        ),
+    )
 
+
+@pytest.fixture
+def client(settings, services) -> Iterator[TestClient]:
     app.dependency_overrides = {
-        get_settings: lambda: settings,
-        dependencies.get_document_repository: lambda: repository,
-        dependencies.get_embedding_service: lambda: embedding_service,
-        dependencies.get_chat_service: _chat_service,
+        get_app_settings: lambda: settings,
+        get_services: lambda: services,
     }
     try:
-        yield TestClient(app)
+        # raise_server_exceptions=False: assert on the 500 response clients see.
+        yield TestClient(app, raise_server_exceptions=False)
     finally:
         app.dependency_overrides = {}
 

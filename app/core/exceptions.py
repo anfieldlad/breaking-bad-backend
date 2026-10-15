@@ -3,6 +3,10 @@ Custom exceptions for the application.
 
 Provides a hierarchy of exceptions with HTTP status code mapping
 for consistent error handling across the API.
+
+`detail` is returned to API clients, so it must never contain internal
+information (connection strings, provider error payloads, stack traces).
+Chain the original exception with `raise ... from e` so it is still logged.
 """
 
 from typing import Optional
@@ -38,6 +42,13 @@ class InvalidFileTypeError(BreakingBadError):
 
     status_code = 400
     detail = "Only PDF files are supported"
+
+
+class FileTooLargeError(BreakingBadError):
+    """Raised when an uploaded file exceeds the configured size limit."""
+
+    status_code = 413
+    detail = "File is too large"
 
 
 class EmptyPDFError(BreakingBadError):
