@@ -14,6 +14,7 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from app.api.container import build_services
 from app.api.errors import register_exception_handlers
+from app.api.middleware import RequestContextMiddleware
 from app.api.v1.router import router
 from app.core.config import Settings, get_settings
 from app.core.logging import get_logger, setup_logging
@@ -24,8 +25,8 @@ logger = get_logger(__name__)
 @asynccontextmanager
 async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     """Build long-lived services at startup and release them at shutdown."""
-    setup_logging()
     settings: Settings = app.state.settings
+    setup_logging(settings)
     logger.info("Starting %s v%s", settings.app_name, settings.app_version)
 
     # Fails fast on invalid configuration (e.g. missing provider API key).
@@ -70,8 +71,12 @@ def create_app(settings: Optional[Settings] = None) -> FastAPI:
             CORSMiddleware,
             allow_origins=settings.cors_origin_list,
             allow_methods=["GET", "POST", "DELETE"],
-            allow_headers=["Content-Type", "X-API-Key", "X-Cleanup-Password"],
+            allow_headers=["Content-Type", "X-API-Key", "X-Cleanup-Password", "X-Request-ID"],
+            expose_headers=["X-Request-ID"],
         )
+
+    # Outermost: every request (incl. CORS preflights) gets an ID and an access log line.
+    app.add_middleware(RequestContextMiddleware)
 
     register_exception_handlers(app)
     app.include_router(router)

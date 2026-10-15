@@ -44,7 +44,9 @@ class MongoDocumentRepository(DocumentRepositoryBase):
             client: Optional pre-configured MongoDB client (for testing).
         """
         self.settings = settings
-        self.client: MongoClient = client or MongoClient(settings.mongo_uri)
+        self.client: MongoClient = client or MongoClient(
+            settings.mongo_uri, serverSelectionTimeoutMS=settings.mongo_timeout_ms
+        )
         self.collection: Collection = self.client[settings.db_name][settings.collection_name]
         logger.info(
             "MongoDB repository initialized (database=%s, collection=%s)",
@@ -166,6 +168,15 @@ class MongoDocumentRepository(DocumentRepositoryBase):
 
         logger.info("Deleted all %d documents", deleted_count)
         return deleted_count
+
+    def ping(self) -> bool:
+        """Return True if the database answers a ping."""
+        try:
+            self.client.admin.command("ping")
+            return True
+        except Exception:
+            logger.warning("MongoDB ping failed", exc_info=True)
+            return False
 
     def close(self) -> None:
         """Close the MongoDB connection."""

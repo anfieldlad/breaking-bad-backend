@@ -5,7 +5,12 @@ Provides type-safe, validated configuration loaded from environment variables.
 """
 
 from functools import lru_cache
+from typing import Literal
+
+from pydantic import field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
+
+ProviderName = Literal["gemini", "openai"]
 
 
 class Settings(BaseSettings):
@@ -27,8 +32,8 @@ class Settings(BaseSettings):
     # Each can be independently set to "gemini" or "openai".
     # "openai" works with any OpenAI-compatible endpoint (OpenAI, vLLM,
     # Ollama, LM Studio, Together, Groq, etc.) via OPENAI_BASE_URL.
-    chat_provider: str = "gemini"
-    embedding_provider: str = "gemini"
+    chat_provider: ProviderName = "gemini"
+    embedding_provider: ProviderName = "gemini"
 
     # Gemini credentials (required when a provider is set to "gemini")
     gemini_api_key: str = ""
@@ -41,6 +46,14 @@ class Settings(BaseSettings):
     app_name: str = "Breaking B.A.D. API"
     app_version: str = "1.0.0"
     debug: bool = False
+
+    # Logging: "text" for humans, "json" for log aggregation in production.
+    log_level: Literal["DEBUG", "INFO", "WARNING", "ERROR"] = "INFO"
+    log_format: Literal["text", "json"] = "text"
+
+    # MongoDB server selection timeout: how long an operation waits for a
+    # reachable server before failing (pymongo's default is 30s).
+    mongo_timeout_ms: int = 5000
 
     # Comma-separated browser origins allowed by CORS. Leave empty when the
     # frontend calls the API server-side (e.g. through a BFF proxy).
@@ -64,6 +77,16 @@ class Settings(BaseSettings):
     # Ask Gemini to stream its reasoning ("thought" SSE events). Requires a
     # thinking-capable model (Gemini 2.5+).
     gemini_include_thoughts: bool = True
+
+    @field_validator("chat_provider", "embedding_provider", "log_format", mode="before")
+    @classmethod
+    def _lowercase(cls, value: str) -> str:
+        return value.lower() if isinstance(value, str) else value
+
+    @field_validator("log_level", mode="before")
+    @classmethod
+    def _uppercase(cls, value: str) -> str:
+        return value.upper() if isinstance(value, str) else value
 
     @property
     def cors_origin_list(self) -> list[str]:

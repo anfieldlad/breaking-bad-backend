@@ -20,6 +20,23 @@ def test_startup_fails_fast_on_missing_provider_key(settings):
             pass
 
 
+def test_provider_names_are_case_insensitive(settings):
+    from app.core.config import Settings
+
+    loaded = Settings(**{**settings.model_dump(), "chat_provider": "OpenAI"})
+    assert loaded.chat_provider == "openai"
+
+
+def test_unknown_provider_is_rejected_at_load_time(settings):
+    import pytest
+    from pydantic import ValidationError
+
+    from app.core.config import Settings
+
+    with pytest.raises(ValidationError):
+        Settings(**{**settings.model_dump(), "chat_provider": "anthropic"})
+
+
 def test_cors_disabled_by_default(settings):
     client = TestClient(create_app(settings))
     resp = client.options(

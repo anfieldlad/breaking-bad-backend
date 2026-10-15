@@ -102,5 +102,9 @@ class DocumentRepositoryBase(ABC):
         """
         pass
 
-    def close(self) -> None:
+    def ping(self) -> bool:
+        """Return True if the backing store is reachable."""
+        return True
+
+    def close(self) -> None:  # noqa: B027 - optional hook
         """Release any underlying resources (connections, clients)."""

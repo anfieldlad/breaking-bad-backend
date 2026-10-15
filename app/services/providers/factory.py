@@ -20,7 +20,7 @@ from app.services.providers.openai_compat import (
 
 def get_chat_provider(settings: Settings) -> ChatProvider:
     """Build the chat provider selected by settings.chat_provider."""
-    provider = settings.chat_provider.lower()
+    provider = settings.chat_provider
 
     if provider == "gemini":
         if not settings.gemini_api_key:
@@ -49,7 +49,7 @@ def get_chat_provider(settings: Settings) -> ChatProvider:
 
 def get_embedding_provider(settings: Settings) -> EmbeddingProvider:
     """Build the embedding provider selected by settings.embedding_provider."""
-    provider = settings.embedding_provider.lower()
+    provider = settings.embedding_provider
 
     if provider == "gemini":
         if not settings.gemini_api_key:

@@ -10,7 +10,7 @@ This guide provides step-by-step instructions to deploy the Breaking B.A.D. Fast
 - **Logging setup**: Has a robust structured logging module (`app/core/logging.py`) ready to stream output to system service logs.
 - **Stateless backend**: The application stores state in MongoDB Atlas, meaning the backend itself is stateless and easily scalable.
 
-*The only thing to remember before hitting production is changing `allow_origins=["*"]` in `app/main.py` to your specific frontend domain for tighter CORS security.*
+*Before going live: set a strong `API_KEY` and `CLEANUP_PASSWORD`, use `LOG_FORMAT=json`, and leave `CORS_ORIGINS` empty unless a browser calls the API directly (breaking-bad-ui calls it server-side).*
 
 ---
 
@@ -24,26 +24,27 @@ sudo apt install python3-pip python3-venv git nginx -y
 ```
 
 ### 2. Clone the Repository
-Clone the application into the `/var/www/` directory so it's safely maintained by the web server framework:
+Create an unprivileged system user to run the service, then clone the app into `/var/www/` owned by that user:
 ```bash
-cd /var/www
-sudo git clone https://github.com/anfieldlad/breaking-bad-backend.git
-cd breaking-bad-backend
+sudo useradd --system --create-home --shell /usr/sbin/nologin breakingbad
+sudo git clone https://github.com/anfieldlad/breaking-bad-backend.git /var/www/breaking-bad-backend
+sudo chown -R breakingbad:breakingbad /var/www/breaking-bad-backend
+cd /var/www/breaking-bad-backend
 ```
 
 ### 3. Setup the Python Virtual Environment
 Create an isolated environment and install the pinned dependencies:
 ```bash
-sudo python3 -m venv .venv
-sudo source .venv/bin/activate
-sudo pip install -r requirements.txt
+sudo -u breakingbad python3 -m venv .venv
+sudo -u breakingbad .venv/bin/pip install -r requirements.txt
 ```
 
 ### 4. Configure Environment Variables
 You need a `.env` file for your production credentials.
 ```bash
-sudo cp .env.example .env
-sudo nano .env
+sudo -u breakingbad cp .env.example .env
+sudo chmod 600 .env
+sudo -u breakingbad nano .env
 ```
 Populate the `.env` file with your real `MONGO_URI`, `GEMINI_API_KEY`, and secure `API_KEY`. Be sure to update `EMBEDDING_MODEL` to `gemini-embedding-001`!
 
@@ -61,11 +62,13 @@ Description=Gunicorn daemon for Breaking Bad Backend
 After=network.target
 
 [Service]
-User=root
-Group=www-data
+User=breakingbad
+Group=breakingbad
 WorkingDirectory=/var/www/breaking-bad-backend
 Environment="PATH=/var/www/breaking-bad-backend/.venv/bin"
-ExecStart=/var/www/breaking-bad-backend/.venv/bin/gunicorn app.main:app -w 4 -k uvicorn.workers.UvicornWorker --bind 127.0.0.1:8001
+ExecStart=/var/www/breaking-bad-backend/.venv/bin/gunicorn app.main:app -w 4 -k uvicorn.workers.UvicornWorker --bind 127.0.0.1:8001 --timeout 120
+Restart=on-failure
+NoNewPrivileges=true
 
 [Install]
 WantedBy=multi-user.target
@@ -75,7 +78,7 @@ Start and enable the service:
 sudo systemctl start breakingbad
 sudo systemctl enable breakingbad
 ```
-*(You can check if it's running smoothly via `sudo systemctl status breakingbad`)*
+*(You can check if it's running smoothly via `sudo systemctl status breakingbad` and `curl http://127.0.0.1:8001/health/ready`)*
 
 ### 6. Point DNS to Your VPS (Domain Setup)
 Before setting up Nginx, you must point your domain (e.g., `breaking-backend.badai.app`) to your VPS.
@@ -96,6 +99,9 @@ sudo nano /etc/nginx/sites-available/breakingbad
 ```
 Paste this configuration:
 ```nginx
+# Per-IP rate limit for the expensive endpoints (LLM + embedding calls).
+limit_req_zone $binary_remote_addr zone=bb_api:10m rate=30r/m;
+
 server {
     listen 80;
     server_name breaking-backend.badai.app;
@@ -103,6 +109,20 @@ server {
     # Must be >= MAX_UPLOAD_MB (Nginx defaults to 1 MB and would reject
     # larger PDFs with its own 413 before they reach the app).
     client_max_body_size 12m;
+
+    location /api/ {
+        limit_req zone=bb_api burst=10 nodelay;
+        proxy_pass http://127.0.0.1:8001;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+
+        # Required for streaming SSE responses (Chat endpoint)
+        proxy_buffering off;
+        proxy_cache off;
+        proxy_read_timeout 300;
+    }
 
     location / {
         proxy_pass http://127.0.0.1:8001;
@@ -119,6 +139,11 @@ server {
     }
 }
 ```
+> **Rate limiting note:** the limit is per client IP. If the API is only called
+> by the breaking-bad-ui server (its `/api` proxy), every user shares that one
+> IP, so apply per-user limits in front of the UI instead and raise or remove
+> the backend limit.
+
 Enable the site and restart Nginx:
 ```bash
 sudo ln -s /etc/nginx/sites-available/breakingbad /etc/nginx/sites-enabled

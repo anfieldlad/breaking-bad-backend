@@ -21,6 +21,7 @@ app/
 
 - **Single Responsibility**: Each module handles one concern
 - **Dependency Injection**: services are built once at startup (`app/api/container.py`) and injected with `Depends()`
+- **Observability**: every request gets an `X-Request-ID` that appears in all its log lines; `LOG_FORMAT=json` for structured logs
 - **Centralized errors**: services raise typed exceptions; `app/api/errors.py` maps them to `{"detail": ...}` responses without leaking internals
 - **Repository Pattern**: Abstract data access for testability
 - **Service Layer**: Business logic isolated from HTTP concerns
@@ -112,7 +113,8 @@ python main.py
 
 | Method | Endpoint | Description | Auth |
 |--------|----------|-------------|------|
-| `GET` | `/health` | Health check | ❌ |
+| `GET` | `/health` | Liveness (process is up; keep-alive) | ❌ |
+| `GET` | `/health/ready` | Readiness (MongoDB reachable), `503` otherwise | ❌ |
 | `POST` | `/api/ingest` | Upload & process PDF (max 20 pages, 10 MB); re-uploading a filename replaces it | ✅ |
 | `POST` | `/api/chat` | Ask questions (streaming SSE response) | ✅ |
 | `GET` | `/api/documents/count` | Count stored document chunks | ✅ |
@@ -186,6 +188,7 @@ breaking-bad-backend/
 │   │   ├── container.py        # Builds long-lived services at startup
 │   │   ├── dependencies.py     # Dependency injection
 │   │   ├── errors.py           # Exception → HTTP response mapping
+│   │   ├── middleware.py       # Request ID + access log (pure ASGI)
 │   │   └── v1/
 │   │       ├── router.py       # Route aggregation
 │   │       ├── health.py       # Health endpoint
@@ -236,6 +239,9 @@ All configuration is managed via environment variables with sensible defaults:
 | `MAX_UPLOAD_MB` | Max PDF upload size (larger uploads get `413`) | `10` |
 | `CORS_ORIGINS` | Comma-separated browser origins allowed by CORS; empty disables CORS | `""` |
 | `GEMINI_INCLUDE_THOUGHTS` | Stream Gemini reasoning as `thought` events (Gemini 2.5+) | `true` |
+| `LOG_LEVEL` | `DEBUG` / `INFO` / `WARNING` / `ERROR` | `INFO` |
+| `LOG_FORMAT` | `text`, or `json` (one object per line, for log aggregation) | `text` |
+| `MONGO_TIMEOUT_MS` | MongoDB server-selection timeout | `5000` |
 | `CLEANUP_PASSWORD` | Password for `DELETE /api/documents`; empty disables cleanup | `""` |
 
 ## 🧪 Testing
@@ -275,6 +281,7 @@ configured chat/embedding endpoint. They are safe to run repeatedly:
 | `unit/test_document_repository.py` | Mongo repository against a mocked driver |
 | `unit/test_providers.py` | Gemini thought/answer parsing |
 | `unit/test_app_startup.py` | Lifespan wiring, fail-fast config, CORS |
+| `unit/test_observability.py` | Liveness/readiness, request IDs, JSON logs |
 | `integration/test_health.py` | `/health` |
 | `integration/test_llm.py` | Live chat + embedding provider connectivity |
 | `integration/test_documents.py` | Ingest, count, and cleanup endpoints (incl. auth/guards) |
